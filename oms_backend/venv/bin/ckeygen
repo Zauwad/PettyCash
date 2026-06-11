@@ -1,0 +1,8 @@
+#!/bin/sh
+'''exec' "/mnt/3C0A13A60A135BE8/WorkStuff/A Maze /PettyCash/oms_backend/venv/bin/python3" "$0" "$@"
+' '''
+import sys
+from twisted.conch.scripts.ckeygen import run
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(run())

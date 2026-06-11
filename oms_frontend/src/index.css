@@ -1,0 +1,225 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap');
+
+@import "tailwindcss";
+@plugin "daisyui";
+
+/* Tailwind CSS v4 custom theme definitions */
+@theme {
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-heading: 'Outfit', system-ui, sans-serif;
+}
+
+/* Default styling */
+:root {
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+}
+
+/* Theme: A Maze Venture — Premium / Minimalist Corporate (Light Mode) */
+[data-theme="amaze"] {
+  --color-primary: #4A4A4A;                   /* Dark Charcoal */
+  --color-primary-content: #FAFAFA;
+  --color-secondary: #7A7A7A;                 /* Mid Gray */
+  --color-secondary-content: #FAFAFA;
+  --color-accent: #111827;                    /* Near Black */
+  --color-accent-content: #FAFAFA;
+  --color-base-100: #FAFAFA;                  /* Ultra-light gray bg */
+  --color-base-200: #F0F0F0;
+  --color-base-300: #E5E5E5;
+  --color-base-content: #2D2D2D;
+  --color-success: #111827;                   /* Monochrome Success */
+  --color-success-content: #FAFAFA;
+  --color-warning: #7A7A7A;
+  --color-warning-content: #FAFAFA;
+  --color-error: #111827;
+  --color-error-content: #FAFAFA;
+  --color-info: #7A7A7A;
+  --color-info-content: #FAFAFA;
+  --rounded-btn: 0.75rem;
+  --rounded-box: 1rem;
+}
+
+/* A Maze Venture Light Mode Custom Styling Overrides */
+[data-theme="amaze"] .badge-success {
+  background-color: #111827;
+  color: #FAFAFA;
+}
+[data-theme="amaze"] .badge-info,
+[data-theme="amaze"] .badge-warning {
+  background-color: transparent;
+  border: 1px solid #7A7A7A;
+  color: #4A4A4A;
+  animation: none !important;
+}
+[data-theme="amaze"] .badge-error {
+  background-color: transparent;
+  border: 1px solid #111827;
+  color: #111827;
+}
+[data-theme="amaze"] .card, 
+[data-theme="amaze"] .glass-card, 
+[data-theme="amaze"] .glass-panel {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.03), 0 20px 40px -10px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Theme: A Maze Venture (Dark Mode) */
+[data-theme="amaze-dark"] {
+  --color-primary: #CCCCCC;                   /* Light Gray */
+  --color-primary-content: #111827;
+  --color-secondary: #999999;
+  --color-secondary-content: #111827;
+  --color-accent: #FAFAFA;                    /* High Contrast White */
+  --color-accent-content: #111827;
+  --color-base-100: #121212;                  /* Dark bg */
+  --color-base-200: #1C1C1C;
+  --color-base-300: #2A2A2A;
+  --color-base-content: #F5F5F5;
+  --color-success: #FAFAFA;
+  --color-success-content: #111827;
+  --color-warning: #7A7A7A;
+  --color-warning-content: #FAFAFA;
+  --color-error: #FAFAFA;
+  --color-error-content: #111827;
+  --color-info: #7A7A7A;
+  --color-info-content: #FAFAFA;
+  --rounded-btn: 0.75rem;
+  --rounded-box: 1rem;
+}
+
+/* A Maze Venture Dark Mode Custom Styling Overrides */
+[data-theme="amaze-dark"] .badge-success {
+  background-color: #FAFAFA;
+  color: #111827;
+}
+[data-theme="amaze-dark"] .badge-info,
+[data-theme="amaze-dark"] .badge-warning {
+  background-color: transparent;
+  border: 1px solid #7A7A7A;
+  color: #CCCCCC;
+  animation: none !important;
+}
+[data-theme="amaze-dark"] .badge-error {
+  background-color: transparent;
+  border: 1px solid #FAFAFA;
+  color: #FAFAFA;
+}
+[data-theme="amaze-dark"] .card, 
+[data-theme="amaze-dark"] .glass-card, 
+[data-theme="amaze-dark"] .glass-panel {
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.2), 0 20px 40px -10px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Theme: mYnt Connect — Friendly & Connected Mint (Light Mode) */
+[data-theme="mynt"] {
+  --color-primary: #6AC98A;                   /* Mint Green */
+  --color-primary-content: #1A202C;           /* High contrast dark text for accessibility */
+  --color-secondary: #2D3748;                 /* Slate gray */
+  --color-secondary-content: #FFFFFF;
+  --color-accent: #4FD1C5;                    /* Teal accent */
+  --color-accent-content: #1A202C;
+  --color-base-100: #FFFFFF;
+  --color-base-200: #F2FBF5;                  /* Mint-tinted off-white */
+  --color-base-300: #E2F5E9;
+  --color-base-content: #1A202C;
+  --color-success: #6AC98A;
+  --color-success-content: #1A202C;
+  --color-warning: #CBD5E1;
+  --color-warning-content: #1A202C;
+  --color-error: #E2E8F0;
+  --color-error-content: #1A202C;
+  --color-info: #4FD1C5;
+  --color-info-content: #1A202C;
+  --rounded-btn: 0.5rem;
+  --rounded-box: 0.75rem;
+}
+
+/* Theme: mYnt Connect (Dark Mode) */
+[data-theme="mynt-dark"] {
+  --color-primary: #6AC98A;
+  --color-primary-content: #0F172A;
+  --color-secondary: #E2E8F0;
+  --color-secondary-content: #0F172A;
+  --color-accent: #4FD1C5;
+  --color-accent-content: #0F172A;
+  --color-base-100: #0F172A;                  /* slate-900 */
+  --color-base-200: #1E293B;                  /* slate-800 */
+  --color-base-300: #334155;
+  --color-base-content: #F8FAFC;
+  --color-success: #6AC98A;
+  --color-success-content: #0F172A;
+  --color-warning: #334155;
+  --color-warning-content: #F8FAFC;
+  --color-error: #FF6B6B;
+  --color-error-content: #FFFFFF;
+  --color-info: #4FD1C5;
+  --color-info-content: #0F172A;
+  --rounded-btn: 0.5rem;
+  --rounded-box: 0.75rem;
+}
+
+/* Theme: Braincount — Data-driven and Vibrant (Light Mode) */
+[data-theme="braincount"] {
+  --color-primary: #04103B;                   /* Deep Navy */
+  --color-primary-content: #FFFFFF;
+  --color-secondary: #2D7ECC;                 /* Vibrant Blue */
+  --color-secondary-content: #FFFFFF;
+  --color-accent: #C34994;                    /* Magenta/Pink */
+  --color-accent-content: #FFFFFF;
+  --color-base-100: #FFFFFF;
+  --color-base-200: #F3F4F6;
+  --color-base-300: #E5E7EB;
+  --color-base-content: #1F2937;
+  --color-success: #5ABBB2;                   /* Teal/Mint for Approved */
+  --color-success-content: #FFFFFF;
+  --color-warning: #ECC138;                   /* Yellow for Pending */
+  --color-warning-content: #1F2937;
+  --color-error: #C34994;
+  --color-error-content: #FFFFFF;
+  --color-info: #5ABBB2;
+  --color-info-content: #FFFFFF;
+  --rounded-btn: 1rem;
+  --rounded-box: 1.25rem;
+}
+
+/* Theme: Braincount (Dark Mode) */
+[data-theme="braincount-dark"] {
+  --color-primary: #2D7ECC;                   /* Bright Blue on dark */
+  --color-primary-content: #FFFFFF;
+  --color-secondary: #C34994;                 /* Magenta */
+  --color-secondary-content: #FFFFFF;
+  --color-accent: #5ABBB2;                    /* Teal */
+  --color-accent-content: #04103B;
+  --color-base-100: #080C24;                  /* Deep Navy Background */
+  --color-base-200: #0E1436;
+  --color-base-300: #18204C;
+  --color-base-content: #E5E7EB;
+  --color-success: #5ABBB2;
+  --color-success-content: #080C24;
+  --color-warning: #ECC138;
+  --color-warning-content: #080C24;
+  --color-error: #C34994;
+  --color-error-content: #FFFFFF;
+  --color-info: #5ABBB2;
+  --color-info-content: #080C24;
+  --rounded-btn: 1rem;
+  --rounded-box: 1.25rem;
+}
+
+/* Glassmorphism utility classes */
+.glass-panel {
+  backdrop-filter: blur(24px);
+  background-color: color-mix(in oklch, var(--color-base-200) 60%, transparent);
+  border: 1px solid color-mix(in oklch, var(--color-base-content) 5%, transparent);
+}
+
+.glass-card {
+  backdrop-filter: blur(16px);
+  background-color: color-mix(in oklch, var(--color-base-100) 40%, transparent);
+  border: 1px solid color-mix(in oklch, var(--color-base-content) 5%, transparent);
+}
