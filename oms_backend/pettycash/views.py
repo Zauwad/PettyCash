@@ -33,6 +33,11 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     filterset_fields = ['state', 'priority', 'department']
     search_fields = ['title', 'description', 'requester__username', 'requester__email']
 
+    def create(self, request, *args, **kwargs):
+        if request.user.profile.role == UserRole.CEO:
+            return Response({"detail": "CEOs cannot create petty cash requests."}, status=status.HTTP_403_FORBIDDEN)
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
         # Auto-set the requester, department, and tenant organization based on user profile
         user = self.request.user

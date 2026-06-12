@@ -56,11 +56,10 @@ class UserProfile(models.Model):
         blank=True,
         null=True
     )
-    avatar_url = models.CharField(
-        max_length=500,
+    avatar_url = models.TextField(
         blank=True,
         null=True,
-        help_text="Public S3 / Cloud / Gravatar avatar path"
+        help_text="Public S3 / Cloud / Gravatar avatar path or base64 image data"
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
