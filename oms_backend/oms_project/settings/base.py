@@ -19,6 +19,9 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = env('SECRET_KEY')
 DEBUG = env('DEBUG')
 ALLOWED_HOSTS = env('ALLOWED_HOSTS')
+if os.environ.get('VERCEL') == '1':
+    ALLOWED_HOSTS.extend(['.vercel.app', '*'])
+
 
 # Application definition
 # Daphne must be at the very top of INSTALLED_APPS for Channels to work correctly
@@ -89,10 +92,23 @@ TEMPLATES = [
 WSGI_APPLICATION = 'oms_project.wsgi.application'
 ASGI_APPLICATION = 'oms_project.asgi.application'
 
-# Database Configuration (MySQL)
-DATABASES = {
-    'default': env.db('DATABASE_URL', default=f"mysql://{env('DB_USER')}:{env('DB_PASSWORD')}@{env('DB_HOST')}:{env('DB_PORT')}/{env('DB_NAME')}")
-}
+# Database Configuration (MySQL / SQLite Fallback on Vercel)
+if 'DATABASE_URL' in os.environ:
+    DATABASES = {
+        'default': env.db('DATABASE_URL')
+    }
+elif os.environ.get('VERCEL') == '1':
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': '/tmp/db.sqlite3',
+        }
+    }
+else:
+    DATABASES = {
+        'default': env.db('DATABASE_URL', default=f"mysql://{env('DB_USER')}:{env('DB_PASSWORD')}@{env('DB_HOST')}:{env('DB_PORT')}/{env('DB_NAME')}")
+    }
+
 
 # Custom User Model
 AUTH_USER_MODEL = 'auth.User'  # We will extend User via Profile model as per ERD

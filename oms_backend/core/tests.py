@@ -506,7 +506,8 @@ class OMSIntegrationTests(TestCase):
             "role": "EMPLOYEE",
             "employee_id": "AMZ_NEW_EMP",
             "phone": "01755555555",
-            "department": self.dept_org1_eng.id
+            "department": self.dept_org1_eng.id,
+            "avatar_url": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
         }
         res1 = self.client.post("/api/users/", payload1, format="json")
         self.assertEqual(res1.status_code, status.HTTP_201_CREATED)
@@ -517,6 +518,7 @@ class OMSIntegrationTests(TestCase):
         self.assertEqual(new_user.profile.organization, self.org1)
         self.assertEqual(new_user.profile.department, self.dept_org1_eng)
         self.assertEqual(new_user.profile.role, "EMPLOYEE")
+        self.assertEqual(new_user.profile.avatar_url, payload1["avatar_url"])
 
         # 2. HR member creates a new team lead successfully
         self.client.force_authenticate(user=self.user_hr1)
@@ -567,4 +569,40 @@ class OMSIntegrationTests(TestCase):
         res5 = self.client.post("/api/users/", payload5, format="json")
         self.assertEqual(res5.status_code, status.HTTP_400_BAD_REQUEST)
         self.assertIn("department", res5.data)
+
+    def test_ceo_blocked_from_applying_for_leave_or_requisition(self):
+        """
+        Verify that a CEO is blocked from creating both petty cash and leave requests.
+        """
+        self.client.force_authenticate(user=self.user_ceo1)
+        
+        # 1. Petty Cash request creation should be forbidden (403)
+        pcr_payload = {
+            "title": "CEO Requisition",
+            "description": "Important items",
+            "amount_requested": "25000.00",
+            "needed_by": "2026-06-30",
+            "priority": "HIGH",
+            "department_id": self.dept_org1_eng.id,
+            "line_items": [
+                {
+                    "description": "Executive meeting supplies",
+                    "quantity": 1,
+                    "unit_price": "25000.00",
+                    "category": "Office Supplies"
+                }
+            ]
+        }
+        res_pcr = self.client.post("/api/petty-cash/", pcr_payload, format="json")
+        self.assertEqual(res_pcr.status_code, status.HTTP_403_FORBIDDEN)
+        
+        # 2. Leave request creation should be forbidden (403)
+        leave_payload = {
+            "start_date": "2026-06-11",
+            "end_date": "2026-06-16",
+            "leave_type_id": self.annual_leave.id,
+            "reason": "CEO retreat"
+        }
+        res_leave = self.client.post("/api/leave/requests/", leave_payload, format="json")
+        self.assertEqual(res_leave.status_code, status.HTTP_403_FORBIDDEN)
 

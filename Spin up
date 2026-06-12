@@ -1,0 +1,53 @@
+Here are the steps to spin up the entire application locally for testing:
+
+### 1. Spin up Databases (MySQL & Redis)
+In your root workspace directory (`/mnt/3C0A13A60A135BE8/WorkStuff/A Maze /PettyCash`), run the following command to start the containers in the background:
+```bash
+docker-compose up -d
+```
+
+---
+
+### 2. Start the Backend API & WebSocket Server
+Open a terminal, navigate to the `oms_backend` folder, activate the virtual environment, and boot up the ASGI application using Daphne on port `8000`:
+```bash
+cd oms_backend
+source venv/bin/activate
+daphne -b 0.0.0.0 -p 8000 oms_project.asgi:application
+```
+
+---
+
+### 3. Start Celery Worker & Beat (For Background Notifications & Schedules)
+Open two separate terminal tabs, navigate to `oms_backend`, activate the environment, and start the processes:
+
+*   **Celery Worker**:
+    ```bash
+    cd oms_backend
+    source venv/bin/activate
+    celery -A oms_project worker --loglevel=info
+    ```
+*   **Celery Beat Scheduler**:
+    ```bash
+    cd oms_backend
+    source venv/bin/activate
+    celery -A oms_project beat --loglevel=info
+    ```
+
+---
+
+### 4. Start the Frontend Client
+Open a terminal, navigate to the `oms_frontend` folder, and start Vite's local dev server:
+```bash
+cd oms_frontend
+npm run dev
+```
+Open **[http://localhost:5173](http://localhost:5173)** in your browser.
+
+---
+
+### 👥 Test Credentials (Password: `password123`)
+
+*   **A Maze Venture Theme**: Login as `amaze_eng_emp1` (Employee) or `amaze_ceo` (CEO).
+*   **mYnt Connect Theme**: Login as `mynt_mkt_emp1` (Employee) or `mynt_ceo` (CEO).
+*   **Braincount Theme**: Login as `braincount_fin_emp1` (Employee) or `braincount_ceo` (CEO).

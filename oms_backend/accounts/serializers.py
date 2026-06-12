@@ -97,12 +97,13 @@ class UserCreateSerializer(serializers.ModelSerializer):
     role = serializers.ChoiceField(choices=UserRole.choices, required=True, write_only=True)
     employee_id = serializers.CharField(max_length=20, required=True, write_only=True)
     phone = serializers.CharField(max_length=15, required=False, allow_blank=True, default='', write_only=True)
+    avatar_url = serializers.CharField(required=False, allow_blank=True, default='', write_only=True)
     department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all(), required=False, allow_null=True, write_only=True)
     password = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'first_name', 'last_name', 'password', 'role', 'employee_id', 'phone', 'department']
+        fields = ['username', 'email', 'first_name', 'last_name', 'password', 'role', 'employee_id', 'phone', 'department', 'avatar_url']
 
     def validate_email(self, value):
         if not value:
@@ -136,6 +137,7 @@ class UserCreateSerializer(serializers.ModelSerializer):
         role = validated_data.pop('role')
         employee_id = validated_data.pop('employee_id')
         phone = validated_data.pop('phone', '')
+        avatar_url = validated_data.pop('avatar_url', '')
         department = validated_data.pop('department', None)
         password = validated_data.pop('password')
         organization = validated_data.pop('organization', None)
@@ -158,7 +160,8 @@ class UserCreateSerializer(serializers.ModelSerializer):
             department=department,
             role=role,
             employee_id=employee_id,
-            phone=phone
+            phone=phone,
+            avatar_url=avatar_url
         )
 
         return user

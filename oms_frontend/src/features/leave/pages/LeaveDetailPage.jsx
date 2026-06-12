@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -383,7 +384,7 @@ export function LeaveDetailPage() {
         </div>
 
         {/* MODAL: Rejection Reason */}
-        {showRejectModal && (
+        {showRejectModal && createPortal(
           <div className="modal modal-open">
             <div className="modal-box rounded-2xl glass-panel border border-base-content/10 p-6 max-w-md">
               <h3 className="font-bold text-lg Outfit text-base-content flex items-center gap-2">
@@ -428,7 +429,8 @@ export function LeaveDetailPage() {
                 </div>
               </form>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </PageTransition>

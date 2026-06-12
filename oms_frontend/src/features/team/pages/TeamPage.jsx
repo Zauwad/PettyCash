@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { teamApi } from '../api/teamApi';
@@ -14,20 +15,105 @@ import {
   ShieldAlert, 
   UserCog, 
   RefreshCw,
-  UserCheck
+  UserCheck,
+  UserPlus,
+  User
 } from 'lucide-react';
-
 export function TeamPage() {
   const { user: currentUser } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
 
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [formData, setFormData] = useState({
+    first_name: '',
+    last_name: '',
+    username: '',
+    email: '',
+    password: '',
+    employee_id: '',
+    phone: '',
+    department: '',
+    role: ROLES.EMPLOYEE,
+    avatar_url: ''
+  });
+
+  const handleAvatarFileChange = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Avatar image must be under 2MB.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData(prev => ({
+        ...prev,
+        avatar_url: reader.result
+      }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Fetch all organization users
   const { data: usersData, isLoading, isRefetching, refetch } = useQuery({
     queryKey: ['organization-users'],
     queryFn: () => teamApi.getUsers(),
   });
+
+  // Fetch organization departments
+  const { data: deptsData } = useQuery({
+    queryKey: ['organization-departments'],
+    queryFn: () => teamApi.getDepartments(),
+  });
+  const orgDepts = deptsData?.results || deptsData || [];
+
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: (data) => teamApi.createMember(data),
+    onSuccess: (newMember) => {
+      queryClient.invalidateQueries(['organization-users']);
+      const name = newMember.first_name ? `${newMember.first_name} ${newMember.last_name || ''}` : newMember.username;
+      toast.success(`User ${name} created successfully!`);
+      setIsCreateModalOpen(false);
+      setFormData({
+        first_name: '',
+        last_name: '',
+        username: '',
+        email: '',
+        password: '',
+        employee_id: '',
+        phone: '',
+        department: '',
+        role: ROLES.EMPLOYEE,
+        avatar_url: ''
+      });
+    },
+    onError: (error) => {
+      const data = error.response?.data;
+      if (data && typeof data === 'object') {
+        const errorMsgs = Object.entries(data)
+          .map(([key, val]) => `${key}: ${Array.isArray(val) ? val.join(' ') : val}`)
+          .join('\n');
+        toast.error(errorMsgs || 'Failed to create team member.');
+      } else {
+        toast.error('Failed to create team member.');
+      }
+    }
+  });
+
+  const handleCreateUser = (e) => {
+    e.preventDefault();
+    createUserMutation.mutate(formData);
+  };
+
+  const isActorAdmin = currentUser?.profile?.role === ROLES.ADMIN;
+  const isActorCEO = currentUser?.profile?.role === ROLES.CEO;
+  const isActorHR = currentUser?.profile?.department?.name?.toUpperCase().includes('HR');
+  const isPrivilegedUser = isActorAdmin || isActorCEO || isActorHR;
 
   // Role change mutation
   const changeRoleMutation = useMutation({
@@ -68,7 +154,7 @@ export function TeamPage() {
     changeRoleMutation.mutate({ userId, role: newRole });
   };
 
-  const isActorAdmin = currentUser?.profile?.role === ROLES.ADMIN;
+
 
   return (
     <PageTransition>
@@ -79,14 +165,25 @@ export function TeamPage() {
             <h2 className="text-3xl font-extrabold Outfit tracking-tight">Team Directory</h2>
             <p className="text-sm text-base-content/55">View all employees in your organization and manage role clearances.</p>
           </div>
-          <button 
-            onClick={() => refetch()} 
-            disabled={isLoading || isRefetching}
-            className="btn btn-ghost btn-sm rounded-xl gap-2 font-bold text-xs"
-          >
-            <RefreshCw className={`w-4 h-4 ${(isLoading || isRefetching) ? 'animate-spin' : ''}`} />
-            Refresh Directory
-          </button>
+          <div className="flex items-center gap-3">
+            {isPrivilegedUser && (
+              <button
+                onClick={() => setIsCreateModalOpen(true)}
+                className="btn btn-primary btn-sm rounded-xl gap-2 font-bold text-xs"
+              >
+                <UserPlus className="w-4 h-4" />
+                Add Team Member
+              </button>
+            )}
+            <button 
+              onClick={() => refetch()} 
+              disabled={isLoading || isRefetching}
+              className="btn btn-ghost btn-sm rounded-xl gap-2 font-bold text-xs"
+            >
+              <RefreshCw className={`w-4 h-4 ${(isLoading || isRefetching) ? 'animate-spin' : ''}`} />
+              Refresh Directory
+            </button>
+          </div>
         </div>
 
         {/* Filter Toolbar */}
@@ -159,11 +256,19 @@ export function TeamPage() {
                       <tr key={emp.id} className="employee-row hover:bg-base-200/35 transition-colors border-b border-base-content/5">
                         <td className="py-4 pl-6">
                           <div className="flex items-center gap-3">
-                            <div className="avatar placeholder">
-                              <div className="bg-primary/10 text-primary border border-primary/20 rounded-xl w-10 h-10 font-bold text-xs uppercase">
-                                {emp.username?.substring(0, 2)}
+                            {emp.profile?.avatar_url ? (
+                              <div className="avatar">
+                                <div className="rounded-xl w-10 h-10 border border-base-content/10 overflow-hidden flex items-center justify-center bg-base-100">
+                                  <img src={emp.profile.avatar_url} alt={empName} className="object-cover w-full h-full" />
+                                </div>
                               </div>
-                            </div>
+                            ) : (
+                              <div className="avatar">
+                                <div className="bg-primary/10 text-primary border border-primary/20 rounded-xl w-10 h-10 flex items-center justify-center">
+                                  <User className="w-5 h-5" />
+                                </div>
+                              </div>
+                            )}
                             <div>
                               <p className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
                                 {empName}
@@ -234,6 +339,183 @@ export function TeamPage() {
               </table>
             </div>
           </div>
+        )}
+        {/* Create User Modal */}
+        {isCreateModalOpen && createPortal(
+          <div className="modal modal-open">
+            <div className="modal-box rounded-2xl border border-base-content/10 bg-base-100 shadow-2xl max-w-md">
+              <h3 className="font-bold text-lg Outfit mb-4">Add New Team Member</h3>
+              
+              <form onSubmit={handleCreateUser} className="space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text font-bold text-base-content/75">First Name</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50"
+                      value={formData.first_name}
+                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text font-bold text-base-content/75">Last Name</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50"
+                      value={formData.last_name}
+                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-bold text-base-content/75">Username</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50"
+                    value={formData.username}
+                    onChange={(e) => setFormData({ ...formData, username: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-bold text-base-content/75">Email Address</span>
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-bold text-base-content/75">Password</span>
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text font-bold text-base-content/75">Employee ID</span>
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      placeholder="e.g. AMZ_ENG05"
+                      className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50"
+                      value={formData.employee_id}
+                      onChange={(e) => setFormData({ ...formData, employee_id: e.target.value })}
+                    />
+                  </div>
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text font-bold text-base-content/75">Phone</span>
+                    </label>
+                    <input
+                      type="text"
+                      className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text font-bold text-base-content/75">Department</span>
+                    </label>
+                    <select
+                      required
+                      className="select select-bordered select-sm rounded-xl text-xs h-9 min-h-[36px] w-full bg-base-200/50"
+                      value={formData.department}
+                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                    >
+                      <option value="">Select Department</option>
+                      {orgDepts?.map(dept => (
+                        <option key={dept.id} value={dept.id}>{dept.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-control">
+                    <label className="label py-1">
+                      <span className="label-text font-bold text-base-content/75">System Role</span>
+                    </label>
+                    <select
+                      required
+                      className="select select-bordered select-sm rounded-xl text-xs h-9 min-h-[36px] w-full bg-base-200/50"
+                      value={formData.role}
+                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                    >
+                      <option value={ROLES.EMPLOYEE}>Employee</option>
+                      <option value={ROLES.TEAM_LEAD}>Team Lead</option>
+                      <option value={ROLES.CEO}>CEO</option>
+                      {isActorAdmin && (
+                        <option value={ROLES.ADMIN}>Global Admin</option>
+                      )}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-bold text-base-content/75">Profile Image</span>
+                  </label>
+                  <input
+                    key={formData.avatar_url ? 'has-avatar' : 'no-avatar'}
+                    type="file"
+                    accept="image/*"
+                    className="file-input file-input-bordered file-input-sm w-full rounded-xl bg-base-200/50 text-xs"
+                    onChange={handleAvatarFileChange}
+                  />
+                  {formData.avatar_url && (
+                    <div className="mt-2 flex items-center gap-2 bg-base-200/40 p-2 rounded-xl border border-base-content/5">
+                      <img src={formData.avatar_url} className="w-10 h-10 rounded-xl object-cover border border-base-content/10" alt="Preview" />
+                      <button type="button" onClick={() => setFormData({ ...formData, avatar_url: '' })} className="btn btn-ghost btn-xs text-error font-bold">Remove</button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="modal-action gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="btn btn-ghost btn-sm rounded-xl text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={createUserMutation.isPending}
+                    className="btn btn-primary btn-sm rounded-xl text-xs font-bold"
+                  >
+                    {createUserMutation.isPending ? 'Creating...' : 'Create Member'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
         )}
       </div>
     </PageTransition>

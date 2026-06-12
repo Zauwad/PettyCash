@@ -59,6 +59,7 @@ const LINE_ITEM_CATEGORIES = [
 
 export function PettyCashListPage() {
   const { user } = useAuth();
+  const isCEO = user?.profile?.role === 'CEO';
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   
@@ -69,7 +70,7 @@ export function PettyCashListPage() {
   const priorityVal = searchParams.get('priority') || 'all';
 
   // Toggle view state: 'list' or 'create'
-  const [view, setView] = useState(searchParams.get('create') === 'true' ? 'create' : 'list');
+  const [view, setView] = useState(searchParams.get('create') === 'true' && !isCEO ? 'create' : 'list');
   const [filesToUpload, setFilesToUpload] = useState([]);
   
   // Filter drawer state for mobile
@@ -250,6 +251,7 @@ export function PettyCashListPage() {
   };
 
   const handleCreateToggle = (shouldCreate) => {
+    if (shouldCreate && isCEO) return;
     if (shouldCreate) {
       setView('create');
       setSearchParams(prev => {
@@ -293,7 +295,7 @@ export function PettyCashListPage() {
             </p>
           </div>
 
-          {view === 'list' && (
+          {view === 'list' && !isCEO && (
             <button 
               onClick={() => handleCreateToggle(true)}
               className="btn btn-primary rounded-xl font-bold gap-2 shadow-lg shadow-primary/20"
@@ -433,9 +435,9 @@ export function PettyCashListPage() {
             ) : (
               <EmptyState 
                 title="No requisitions found" 
-                message="Adjust your search filters or create a new petty cash requisition to get started."
-                actionLabel="Raise Requisition"
-                onAction={() => handleCreateToggle(true)}
+                message={isCEO ? "No requisitions have been raised in your department yet." : "Adjust your search filters or create a new petty cash requisition to get started."}
+                actionLabel={isCEO ? undefined : "Raise Requisition"}
+                onAction={isCEO ? undefined : () => handleCreateToggle(true)}
               />
             )}
 

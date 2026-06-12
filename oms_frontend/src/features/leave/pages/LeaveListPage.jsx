@@ -65,7 +65,8 @@ export function LeaveListPage() {
   const page = parseInt(searchParams.get('page') || '1', 10);
   const searchVal = searchParams.get('search') || '';
 
-  const [view, setView] = useState(searchParams.get('create') === 'true' ? 'create' : 'list');
+  const isCEO = user?.profile?.role === 'CEO';
+  const [view, setView] = useState(searchParams.get('create') === 'true' && !isCEO ? 'create' : 'list');
   const [workingDays, setWorkingDays] = useState(0);
   const [isCalculatingDays, setIsCalculatingDays] = useState(false);
 
@@ -233,6 +234,7 @@ export function LeaveListPage() {
   };
 
   const handleCreateToggle = (shouldCreate) => {
+    if (shouldCreate && isCEO) return;
     if (shouldCreate) {
       setView('create');
       setSearchParams(prev => {
@@ -283,13 +285,15 @@ export function LeaveListPage() {
                   <CalendarDays className="w-4 h-4" />
                   Team Calendar
                 </Link>
-                <button 
-                  onClick={() => handleCreateToggle(true)}
-                  className="btn btn-secondary rounded-xl font-bold gap-2 shadow-lg shadow-secondary/20"
-                >
-                  <Plus className="w-5 h-5" />
-                  Apply Leave
-                </button>
+                {!isCEO && (
+                  <button 
+                    onClick={() => handleCreateToggle(true)}
+                    className="btn btn-secondary rounded-xl font-bold gap-2 shadow-lg shadow-secondary/20"
+                  >
+                    <Plus className="w-5 h-5" />
+                    Apply Leave
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -400,9 +404,9 @@ export function LeaveListPage() {
               ) : (
                 <EmptyState
                   title="No leave requests found"
-                  message="Raise a leave application to request scheduled time off."
-                  actionLabel="Apply Leave"
-                  onAction={() => handleCreateToggle(true)}
+                  message={isCEO ? "No leave requests have been submitted in your department yet." : "Raise a leave application to request scheduled time off."}
+                  actionLabel={isCEO ? undefined : "Apply Leave"}
+                  onAction={isCEO ? undefined : () => handleCreateToggle(true)}
                 />
               )}
 

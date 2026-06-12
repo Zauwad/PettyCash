@@ -46,6 +46,7 @@ export function DashboardPage() {
   const role = user?.profile?.role || user?.role;
   const isManager = ['TEAM_LEAD', 'CEO', 'ADMIN'].includes(role);
   const isExecutive = ['CEO', 'ADMIN'].includes(role);
+  const isCEO = role === 'CEO';
 
   // Stagger entrance hook for dashboard cards
   const containerRef = useGSAPStagger('.stagger-card', [role]);
@@ -128,16 +129,18 @@ export function DashboardPage() {
               {!isExecutive && ` You are logged into the ${user?.profile?.department?.name || 'Central'} department.`}
             </p>
           </div>
-          <div className="flex gap-3 relative z-10">
-            <Link to="/petty-cash" className="btn btn-primary btn-sm rounded-xl font-bold gap-1.5 shadow-md shadow-primary/20">
-              <PlusCircle className="w-4 h-4" />
-              Petty Cash Requisition
-            </Link>
-            <Link to="/leave" className="btn btn-primary btn-sm rounded-xl font-bold gap-1.5 shadow-md shadow-secondary/20">
-              <PlusCircle className="w-4 h-4" />
-              Apply Leave
-            </Link>
-          </div>
+          {!isCEO && (
+            <div className="flex gap-3 relative z-10">
+              <Link to="/petty-cash" className="btn btn-primary btn-sm rounded-xl font-bold gap-1.5 shadow-md shadow-primary/20">
+                <PlusCircle className="w-4 h-4" />
+                Petty Cash Requisition
+              </Link>
+              <Link to="/leave" className="btn btn-primary btn-sm rounded-xl font-bold gap-1.5 shadow-md shadow-secondary/20">
+                <PlusCircle className="w-4 h-4" />
+                Apply Leave
+              </Link>
+            </div>
+          )}
         </div>
 
         {/* Executive Dashboard Cards */}

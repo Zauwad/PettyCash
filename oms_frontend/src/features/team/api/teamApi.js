@@ -18,5 +18,22 @@ export const teamApi = {
   async changeRole(userId, role) {
     const response = await axiosInstance.post(`/api/users/${userId}/change-role/`, { role });
     return response.data;
+  },
+
+  /**
+   * Creates a new organization user account.
+   * @param {object} data - Form data containing user credentials and profile options
+   */
+  async createMember(data) {
+    const response = await axiosInstance.post('/api/users/', data);
+    return response.data;
+  },
+
+  /**
+   * Fetches all departments belonging to the current organization.
+   */
+  async getDepartments() {
+    const response = await axiosInstance.get('/api/departments/');
+    return response.data;
   }
 };
