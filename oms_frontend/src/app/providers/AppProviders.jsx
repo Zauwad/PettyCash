@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from './AuthProvider';
 import { ThemeProvider } from './ThemeProvider';
-import { Toaster } from 'sonner';
+import { Toaster } from '@/components/ui/sonner';
 
 // Configure global QueryClient settings
 const queryClient = new QueryClient({
@@ -20,15 +20,10 @@ export function AppProviders({ children }) {
       <AuthProvider>
         <ThemeProvider>
           {children}
-          {/* Sonner toast provider configured for rich styling */}
+          {/* Sonner toast provider configured via Shadcn component */}
           <Toaster 
-            richColors 
             position="top-right" 
-            theme="dark" 
             closeButton 
-            toastOptions={{
-              className: 'font-sans rounded-xl border-base-content/10 shadow-xl backdrop-blur-md bg-base-200/95',
-            }}
           />
         </ThemeProvider>
       </AuthProvider>

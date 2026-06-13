@@ -7,6 +7,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import gsap from 'gsap';
 import { LogIn } from 'lucide-react';
+import { Spotlight } from '@/shared/components/ui/Spotlight';
 
 // Client-side form validation rules
 const loginSchema = z.object({
@@ -72,13 +73,21 @@ export function LoginForm() {
   return (
     <div 
       ref={formRef} 
-      className="min-h-screen w-full flex items-center justify-center bg-radial from-base-200 to-base-300 px-4 relative overflow-hidden"
+      className="min-h-screen w-full flex items-center justify-center bg-base-100 px-4 relative overflow-hidden"
     >
+      {/* Aceternity Grid Background */}
+      <div className="absolute inset-0 bg-grid-aceternity pointer-events-none" />
+      
+      {/* Radial gradient mask for container to give a faded look */}
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-base-100 [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]" />
+
+      <Spotlight className="-top-30 -left-20 md:left-80 md:-top-40 z-10" fill="var(--color-primary)" />
+      
       {/* Decorative gradient glowing bubbles in background */}
       <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-primary/10 rounded-full blur-[120px] pointer-events-none"></div>
       <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-secondary/10 rounded-full blur-[120px] pointer-events-none"></div>
 
-      <div className="w-full max-w-md glass-panel p-8 rounded-2xl shadow-2xl relative z-10">
+      <div className="w-full max-w-md glass-panel p-8 rounded-2xl shadow-2xl relative z-5">
         {/* Brand Header */}
         <div className="flex flex-col items-center mb-8 text-center">
           <div className="anim-item bg-primary/10 p-3 rounded-xl mb-4 border border-primary/20">

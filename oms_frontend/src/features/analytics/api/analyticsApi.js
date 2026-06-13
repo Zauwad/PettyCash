@@ -33,4 +33,28 @@ export const analyticsApi = {
     const response = await axiosInstance.get(API_ENDPOINTS.ANALYTICS_SUMMARY);
     return response.data;
   },
+
+  /**
+   * Fetch weekly report data (CEO / Admin / GM / TL / HR only).
+   */
+  async getWeeklyReport() {
+    const response = await axiosInstance.get(API_ENDPOINTS.ANALYTICS_WEEKLY_REPORT);
+    return response.data;
+  },
+
+  /**
+   * Fetch monthly report data (CEO / Admin / GM / TL / HR only).
+   */
+  async getMonthlyReport() {
+    const response = await axiosInstance.get(API_ENDPOINTS.ANALYTICS_MONTHLY_REPORT);
+    return response.data;
+  },
+
+  /**
+   * Fetch quarterly report data (CEO / Admin / GM / TL / HR only).
+   */
+  async getQuarterlyReport() {
+    const response = await axiosInstance.get(API_ENDPOINTS.ANALYTICS_QUARTERLY_REPORT);
+    return response.data;
+  },
 };

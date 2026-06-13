@@ -8,6 +8,9 @@ import { LoadingSkeleton } from '@/shared/components/ui/LoadingSkeleton';
 import { useGSAPStagger } from '@/shared/hooks/useGSAPStagger';
 import { ROLES } from '@/shared/constants/roles';
 import { toast } from 'sonner';
+import { Select } from '@/shared/components/ui/Select';
+import { Badge } from '@/components/ui/badge';
+import { Spinner } from '@/components/ui/spinner';
 import { 
   Users, 
   Search, 
@@ -107,6 +110,10 @@ export function TeamPage() {
 
   const handleCreateUser = (e) => {
     e.preventDefault();
+    if (!formData.department) {
+      toast.error('Please select a department.');
+      return;
+    }
     createUserMutation.mutate(formData);
   };
 
@@ -201,17 +208,15 @@ export function TeamPage() {
 
           <div className="flex items-center gap-2 w-full md:w-auto">
             <Building2 className="w-4 h-4 text-base-content/40 shrink-0" />
-            <select
-              className="select select-bordered select-sm rounded-xl h-10 border-base-content/10 bg-base-100/45 focus:bg-base-100 text-xs w-full md:w-56"
+            <Select
               value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-            >
-              {departments.map(dept => (
-                <option key={dept} value={dept}>
-                  {dept === 'ALL' ? 'All Departments' : dept}
-                </option>
-              ))}
-            </select>
+              onChange={setSelectedDept}
+              options={departments.map(dept => ({
+                value: dept,
+                label: dept === 'ALL' ? 'All Departments' : dept
+              }))}
+              className="w-full md:w-56"
+            />
           </div>
         </div>
 
@@ -273,7 +278,7 @@ export function TeamPage() {
                               <p className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
                                 {empName}
                                 {isSelf && (
-                                  <span className="badge badge-primary badge-xs rounded font-bold uppercase tracking-wider scale-90 px-1.5">You</span>
+                                  <Badge variant="default" className="text-[10px] leading-none uppercase tracking-wider font-bold px-1.5 py-0.5 rounded">You</Badge>
                                 )}
                               </p>
                               <p className="text-[10px] text-base-content/40 font-semibold">{emp.email}</p>
@@ -284,37 +289,43 @@ export function TeamPage() {
                           {emp.profile?.employee_id || 'N/A'}
                         </td>
                         <td>
-                          <span className="badge badge-ghost font-bold rounded-lg px-2.5 py-1">
+                          <Badge variant="ghost" className="font-bold rounded-lg px-2.5 py-1 border border-base-content/10 bg-base-200/50">
                             {emp.profile?.department?.name || 'Unassigned'}
-                          </span>
+                          </Badge>
                         </td>
                         <td>
-                          <span className={`badge font-bold uppercase tracking-wider rounded-lg px-2.5 py-1 ${
-                            currentRole === ROLES.ADMIN ? 'badge-error text-error-content' :
-                            currentRole === ROLES.CEO ? 'badge-secondary text-secondary-content' :
-                            currentRole === ROLES.TEAM_LEAD ? 'badge-primary text-primary-content' :
-                            'badge-ghost text-base-content/65'
-                          }`}>
+                          <Badge 
+                            variant={
+                              currentRole === ROLES.ADMIN ? 'destructive' :
+                              currentRole === ROLES.CEO ? 'secondary' :
+                              currentRole === ROLES.TEAM_LEAD ? 'default' :
+                              'ghost'
+                            }
+                            className="font-bold uppercase tracking-wider rounded-lg px-2.5 py-1"
+                          >
                             {emp.profile?.role_display || currentRole}
-                          </span>
+                          </Badge>
                         </td>
                         <td className="text-right pr-6">
                           {canEdit ? (
                             <div className="flex items-center justify-end gap-2">
-                              <UserCog className="w-4 h-4 text-base-content/30" />
-                              <select
-                                className="select select-bordered select-xs rounded-lg text-[11px] h-8 bg-base-100/40 border-base-content/10 font-bold w-36"
+                              {changeRoleMutation.isPending && changeRoleMutation.variables?.userId === emp.id ? (
+                                <Spinner className="w-4 h-4 text-primary animate-spin" />
+                              ) : (
+                                <UserCog className="w-4 h-4 text-base-content/30" />
+                              )}
+                              <Select
                                 value={currentRole}
-                                onChange={(e) => handleRoleChange(emp.id, e.target.value)}
+                                onChange={(val) => handleRoleChange(emp.id, val)}
                                 disabled={changeRoleMutation.isPending}
-                              >
-                                <option value={ROLES.EMPLOYEE}>Employee</option>
-                                <option value={ROLES.TEAM_LEAD}>Team Lead</option>
-                                <option value={ROLES.CEO}>CEO</option>
-                                {isActorAdmin && (
-                                  <option value={ROLES.ADMIN}>Global Admin</option>
-                                )}
-                              </select>
+                                options={[
+                                  { value: ROLES.EMPLOYEE, label: 'Employee' },
+                                  { value: ROLES.TEAM_LEAD, label: 'Team Lead' },
+                                  { value: ROLES.CEO, label: 'CEO' },
+                                  ...(isActorAdmin ? [{ value: ROLES.ADMIN, label: 'Global Admin' }] : []),
+                                ]}
+                                className="w-36 [&>button]:h-8 [&>button]:py-1 [&>button]:rounded-lg [&>button]:text-xs"
+                              />
                             </div>
                           ) : (
                             <div className="flex items-center justify-end gap-1.5 text-base-content/40 font-medium select-none">
@@ -445,35 +456,35 @@ export function TeamPage() {
                     <label className="label py-1">
                       <span className="label-text font-bold text-base-content/75">Department</span>
                     </label>
-                    <select
-                      required
-                      className="select select-bordered select-sm rounded-xl text-xs h-9 min-h-[36px] w-full bg-base-200/50"
+                    <Select
                       value={formData.department}
-                      onChange={(e) => setFormData({ ...formData, department: e.target.value })}
-                    >
-                      <option value="">Select Department</option>
-                      {orgDepts?.map(dept => (
-                        <option key={dept.id} value={dept.id}>{dept.name}</option>
-                      ))}
-                    </select>
+                      onChange={(val) => setFormData({ ...formData, department: val })}
+                      placeholder="Select Department"
+                      options={[
+                        { value: '', label: 'Select Department' },
+                        ...orgDepts.map(dept => ({
+                          value: String(dept.id),
+                          label: dept.name
+                        }))
+                      ]}
+                      className="w-full [&>button]:h-9 [&>button]:py-1 [&>button]:px-3 [&>button]:rounded-xl [&>button]:text-xs [&>button]:bg-base-200/50 [&>button]:border-base-content/15"
+                    />
                   </div>
                   <div className="form-control">
                     <label className="label py-1">
                       <span className="label-text font-bold text-base-content/75">System Role</span>
                     </label>
-                    <select
-                      required
-                      className="select select-bordered select-sm rounded-xl text-xs h-9 min-h-[36px] w-full bg-base-200/50"
+                    <Select
                       value={formData.role}
-                      onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                    >
-                      <option value={ROLES.EMPLOYEE}>Employee</option>
-                      <option value={ROLES.TEAM_LEAD}>Team Lead</option>
-                      <option value={ROLES.CEO}>CEO</option>
-                      {isActorAdmin && (
-                        <option value={ROLES.ADMIN}>Global Admin</option>
-                      )}
-                    </select>
+                      onChange={(val) => setFormData({ ...formData, role: val })}
+                      options={[
+                        { value: ROLES.EMPLOYEE, label: 'Employee' },
+                        { value: ROLES.TEAM_LEAD, label: 'Team Lead' },
+                        { value: ROLES.CEO, label: 'CEO' },
+                        ...(isActorAdmin ? [{ value: ROLES.ADMIN, label: 'Global Admin' }] : [])
+                      ]}
+                      className="w-full [&>button]:h-9 [&>button]:py-1 [&>button]:px-3 [&>button]:rounded-xl [&>button]:text-xs [&>button]:bg-base-200/50 [&>button]:border-base-content/15"
+                    />
                   </div>
                 </div>
 

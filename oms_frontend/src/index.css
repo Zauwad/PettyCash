@@ -223,3 +223,49 @@ h1, h2, h3, h4, h5, h6 {
   background-color: color-mix(in oklch, var(--color-base-100) 40%, transparent);
   border: 1px solid color-mix(in oklch, var(--color-base-content) 5%, transparent);
 }
+
+/* Aceternity Spotlight Background Animations */
+@keyframes spotlight {
+  0% {
+    opacity: 0;
+    transform: translate(-72%, -62%) scale(0.5);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -40%) scale(1);
+  }
+}
+
+.animate-spotlight {
+  animation: spotlight 2s ease 0.75s 1 forwards;
+}
+
+/* Grid overlay background utilities */
+.bg-grid-white {
+  background-size: 30px 30px;
+  background-image: 
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+.bg-grid-black {
+  background-size: 30px 30px;
+  background-image: 
+    linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px);
+}
+
+/* Aceternity Grid and Dot Backgrounds */
+.bg-grid-aceternity {
+  background-size: 40px 40px;
+  background-image: 
+    linear-gradient(to right, color-mix(in oklch, var(--color-base-content) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in oklch, var(--color-base-content) 6%, transparent) 1px, transparent 1px);
+}
+
+.bg-dot-aceternity {
+  background-size: 24px 24px;
+  background-image: radial-gradient(circle, color-mix(in oklch, var(--color-base-content) 8%, transparent) 1px, transparent 1px);
+}
+
+

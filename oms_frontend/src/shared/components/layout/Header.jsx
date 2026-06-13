@@ -8,6 +8,8 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { ToggleTheme } from '@/components/lightswind/toggle-theme';
+import { Badge } from '@/components/ui/badge';
+
 
 export function Header({ onMenuToggle }) {
   const { user } = useAuth();
@@ -105,9 +107,12 @@ export function Header({ onMenuToggle }) {
           >
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && (
-              <span className="badge badge-primary badge-xs absolute top-1.5 right-1.5 border-0 font-black px-1.5 text-[8px] h-3.5 min-w-3.5">
+              <Badge 
+                variant="default" 
+                className="absolute top-1 right-1 border-0 font-black text-[8px] h-3.5 min-w-3.5 flex items-center justify-center p-0 rounded-full"
+              >
                 {unreadCount}
-              </span>
+              </Badge>
             )}
           </button>
 

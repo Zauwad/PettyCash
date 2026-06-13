@@ -63,18 +63,12 @@ def is_authorized_approver(user, request_obj, scope):
         return False
 
     elif state == 'pending_tl_approval':
-        # Identify the department of the request
-        req_dept = getattr(request_obj, 'department', None)
-        if not req_dept and requester and hasattr(requester, 'profile'):
-            req_dept = requester.profile.department
-            
-        if req_dept:
-            # Direct Team Lead of the department
-            if role == UserRole.TEAM_LEAD and profile.department == req_dept:
-                return True
-            # Delegated Team Lead of the department
-            if UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.TEAM_LEAD, department=req_dept).exists():
-                return True
+        # Single TL per company - any TL in the same org can approve
+        if role == UserRole.TEAM_LEAD:
+            return True
+        # Delegated Team Lead of the company
+        if UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.TEAM_LEAD).exists():
+            return True
 
     elif state == 'pending_gm_approval' and scope == 'LEAVE':
         if acts_as_role(UserRole.GENERAL_MANAGER):

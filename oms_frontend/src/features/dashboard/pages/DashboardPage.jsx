@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useThemeStore } from '@/shared/stores/themeStore';
 import { useQuery } from '@tanstack/react-query';
@@ -38,6 +39,43 @@ import {
   Bar,
   Cell
 } from 'recharts';
+
+function useTypewriter(text, speed = 35, delay = 100) {
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const [isComplete, setIsComplete] = useState(false);
+
+  useEffect(() => {
+    if (!text) {
+      setCurrentIndex(0);
+      setIsComplete(false);
+      return;
+    }
+    setCurrentIndex(0);
+    setIsComplete(false);
+    
+    let timer;
+    const startTimeout = setTimeout(() => {
+      timer = setInterval(() => {
+        setCurrentIndex((prevIndex) => {
+          if (prevIndex >= text.length) {
+            clearInterval(timer);
+            setIsComplete(true);
+            return prevIndex;
+          }
+          return prevIndex + 1;
+        });
+      }, speed);
+    }, delay);
+
+    return () => {
+      clearTimeout(startTimeout);
+      if (timer) clearInterval(timer);
+    };
+  }, [text, speed, delay]);
+
+  const displayedText = text ? text.slice(0, currentIndex) : '';
+  return { text: displayedText, isComplete };
+}
 
 export function DashboardPage() {
   const { user } = useAuth();
@@ -128,6 +166,10 @@ export function DashboardPage() {
   const deptBudget = parseFloat(user?.profile?.department?.monthly_budget || 0);
   const tlLimit = parseFloat(user?.profile?.department?.tl_approval_limit || 0);
 
+  const userName = user?.first_name || user?.username;
+  const greetingText = userName ? `${getDhakaGreeting()}, ${userName}!` : '';
+  const { text: typedGreeting, isComplete: isGreetingComplete } = useTypewriter(greetingText, 35, 300);
+
   return (
     <PageTransition>
       <div ref={containerRef} className="space-y-8 pb-12">
@@ -135,10 +177,17 @@ export function DashboardPage() {
         <div className="stagger-card flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-primary/10 to-secondary/5 border border-primary/10 rounded-3xl p-6 md:p-8 relative overflow-hidden shadow-sm">
           <div className="absolute top-[-50%] right-[-10%] w-[350px] h-[350px] bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
           <div className="space-y-2 relative z-10">
-            <h2 className="text-3xl md:text-4xl font-extrabold Outfit tracking-tight">
-              {getDhakaGreeting()}, {user?.first_name || user?.username}!
+            <h2 className="text-3xl md:text-4xl font-extrabold Outfit tracking-tight min-h-[40px] flex items-center">
+              {typedGreeting}
+              {!isGreetingComplete && (
+                <span className="inline-block w-[3px] h-[26px] bg-primary ml-1 animate-pulse" />
+              )}
             </h2>
-            <p className="text-sm text-base-content/70">
+            <p className={`text-sm text-base-content/70 transition-all duration-700 ease-out transform ${
+              isGreetingComplete 
+                ? 'opacity-100 translate-y-0' 
+                : 'opacity-0 translate-y-1.5 pointer-events-none'
+            }`}>
               Welcome back to <span className="font-semibold text-primary">{user?.organization?.name}</span> portal.
               {isExecutive && ' Here is the executive dashboard overview.'}
               {!isExecutive && ` You are logged into the ${user?.profile?.department?.name || 'Central'} department.`}

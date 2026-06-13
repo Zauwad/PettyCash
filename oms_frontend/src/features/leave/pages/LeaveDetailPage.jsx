@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { leaveApi } from '../api/leaveApi';
@@ -29,6 +29,9 @@ export function LeaveDetailPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const role = user?.profile?.role || user?.role;
+  const location = useLocation();
+  const backPath = location.state?.from || '/leave';
+  const backLabel = location.state?.from === '/approvals' ? 'Back to Approvals' : 'Back to Leave list';
 
   // Rejection modal states
   const [showRejectModal, setShowRejectModal] = useState(false);
@@ -199,9 +202,9 @@ export function LeaveDetailPage() {
     <PageTransition>
       <div className="space-y-6">
         {/* Back Link */}
-        <Link to="/leave" className="btn btn-ghost btn-xs text-base-content/60 hover:text-secondary rounded-md gap-1">
+        <Link to={backPath} className="btn btn-ghost btn-xs text-base-content/60 hover:text-secondary rounded-md gap-1">
           <ArrowLeft className="w-4 h-4" />
-          Back to Leave list
+          {backLabel}
         </Link>
 
         {/* Title & FSM operations */}

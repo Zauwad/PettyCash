@@ -7,6 +7,7 @@ import { PageTransition } from '@/shared/components/ui/PageTransition';
 import { LoadingSkeleton } from '@/shared/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { useForm } from 'react-hook-form';
+import { Select } from '@/shared/components/ui/Select';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
@@ -48,7 +49,11 @@ export function DelegationPage() {
   // Query: Fetch delegations list
   const { data: delegations, isLoading, isError } = useQuery({
     queryKey: ['delegations-list'],
-    queryFn: () => delegationApi.list(),
+    queryFn: async () => {
+      const res = await delegationApi.list();
+      return res.results || [];
+    },
+    enabled: isAuthorizedToDelegate
   });
 
   // Query: Fetch colleagues in same organization
@@ -69,6 +74,8 @@ export function DelegationPage() {
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     reset,
     formState: { errors },
   } = useForm({
@@ -81,6 +88,9 @@ export function DelegationPage() {
       reason: '',
     }
   });
+
+  const delegateValue = watch('delegate_id');
+  const scopeValue = watch('scope');
 
   // Mutation: Create Delegation
   const createMutation = useMutation({
@@ -181,19 +191,16 @@ export function DelegationPage() {
                     {/* Delegate user */}
                     <div>
                       <label className="label text-[10px] font-bold text-base-content/75 uppercase tracking-wider">Delegate Colleague</label>
-                      <select
-                        className={`select select-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-sm ${
-                          errors.delegate_id ? 'select-error' : ''
-                        }`}
-                        {...register('delegate_id')}
-                      >
-                        <option value="">Select colleague...</option>
-                        {colleagues?.map(c => (
-                          <option key={c.id} value={c.id}>
-                            {c.first_name ? `${c.first_name} ${c.last_name || ''}` : c.username} ({c.profile?.role})
-                          </option>
-                        ))}
-                      </select>
+                      <Select
+                        value={delegateValue}
+                        onChange={(val) => setValue('delegate_id', val, { shouldValidate: true })}
+                        options={colleagues?.map(c => ({
+                          value: String(c.id),
+                          label: `${c.first_name ? `${c.first_name} ${c.last_name || ''}` : c.username} (${c.profile?.role || ''})`
+                        })) || []}
+                        placeholder="Select colleague..."
+                        className={errors.delegate_id ? 'border-error rounded-xl [&>button]:border-error' : ''}
+                      />
                       {errors.delegate_id && (
                         <span className="text-xs text-error font-medium mt-1 block">{errors.delegate_id.message}</span>
                       )}
@@ -203,14 +210,15 @@ export function DelegationPage() {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <div>
                         <label className="label text-[10px] font-bold text-base-content/75 uppercase tracking-wider">Delegation Scope</label>
-                        <select
-                          className="select select-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-sm"
-                          {...register('scope')}
-                        >
-                          <option value="ALL">All (Cash + Leave)</option>
-                          <option value="PETTY_CASH">Petty Cash Only</option>
-                          <option value="LEAVE">Leave Only</option>
-                        </select>
+                        <Select
+                          value={scopeValue}
+                          onChange={(val) => setValue('scope', val)}
+                          options={[
+                            { value: 'ALL', label: 'All (Cash + Leave)' },
+                            { value: 'PETTY_CASH', label: 'Petty Cash Only' },
+                            { value: 'LEAVE', label: 'Leave Only' },
+                          ]}
+                        />
                       </div>
 
                       <div>

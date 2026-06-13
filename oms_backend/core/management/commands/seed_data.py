@@ -34,6 +34,7 @@ class Command(BaseCommand):
             seed_usernames.append(f"{org_slug}_admin")
             seed_usernames.append(f"{org_slug}_gm")
             seed_usernames.append(f"{org_slug}_hr")
+            seed_usernames.append(f"{org_slug}_lead")
             for dept_slug in ["eng", "mkt", "hr", "fin"]:
                 seed_usernames.append(f"{org_slug}_{dept_slug}_lead")
                 seed_usernames.append(f"{org_slug}_{dept_slug}_emp1")
@@ -147,7 +148,24 @@ class Command(BaseCommand):
             )
             self.initialize_balances(hr_user, leave_types)
 
-            # 4. Seed Departments, TLs, and Employees
+            # 4. Create the single Team Lead for the company
+            tl_user = User.objects.create_user(
+                username=f"{org.slug}_lead",
+                email=f"lead@{org.slug}.com",
+                password="password123",
+                first_name="Team",
+                last_name="Lead"
+            )
+            UserProfile.objects.create(
+                user=tl_user,
+                organization=org,
+                role=UserRole.TEAM_LEAD,
+                employee_id=f"{org.slug.upper()}_TL01",
+                phone="01733333333"
+            )
+            self.initialize_balances(tl_user, leave_types)
+
+            # 5. Seed Departments and Employees
             for dc in dept_configs:
                 dept = Department.objects.create(
                     organization=org,
@@ -155,24 +173,6 @@ class Command(BaseCommand):
                     monthly_budget=dc["budget"],
                     tl_approval_limit=dc["limit"]
                 )
-
-                # Team Lead
-                tl_user = User.objects.create_user(
-                    username=f"{org.slug}_{dc['code']}_lead",
-                    email=f"{dc['code']}_lead@{org.slug}.com",
-                    password="password123",
-                    first_name=f"{dc['name']}",
-                    last_name="Lead"
-                )
-                UserProfile.objects.create(
-                    user=tl_user,
-                    organization=org,
-                    department=dept,
-                    role=UserRole.TEAM_LEAD,
-                    employee_id=f"{org.slug.upper()}_{dc['code'].upper()}01",
-                    phone="01733333333"
-                )
-                self.initialize_balances(tl_user, leave_types)
 
                 # Employees
                 for emp_num in [1, 2]:
@@ -193,7 +193,7 @@ class Command(BaseCommand):
                     )
                     self.initialize_balances(emp_user, leave_types)
 
-                    # 5. Seed sample Petty Cash and Leave Requests
+                    # 6. Seed sample Petty Cash and Leave Requests
                     self.seed_sample_requests(org, dept, emp_user, tl_user, ceo_user)
 
     def seed_holidays(self, org):

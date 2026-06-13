@@ -11,6 +11,8 @@ import { PageTransition } from '@/shared/components/ui/PageTransition';
 import { useGSAPStagger } from '@/shared/hooks/useGSAPStagger';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
+import { Select } from '@/shared/components/ui/Select';
+import { Badge } from '@/components/ui/badge';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
@@ -94,6 +96,7 @@ export function PettyCashListPage() {
     register,
     control,
     handleSubmit,
+    setValue,
     watch,
     reset,
     trigger,
@@ -116,6 +119,7 @@ export function PettyCashListPage() {
 
   // Watch fields for calculations
   const watchedLineItems = watch('line_items');
+  const watchedPriority = watch('priority');
   const totalAmountRequested = watchedLineItems?.reduce((sum, item) => {
     const qty = parseInt(item?.quantity) || 0;
     const price = parseFloat(item?.unit_price) || 0;
@@ -317,17 +321,18 @@ export function PettyCashListPage() {
 
               {/* Priority & Filters */}
               <div className="flex gap-3">
-                <select
+                <Select
                   value={priorityVal}
-                  onChange={(e) => handlePriorityFilter(e.target.value)}
-                  className="select select-bordered rounded-xl bg-base-100/40 border-base-content/10 text-xs font-semibold focus:bg-base-100"
-                >
-                  <option value="all">All Priorities</option>
-                  <option value="LOW">Low</option>
-                  <option value="MEDIUM">Medium</option>
-                  <option value="HIGH">High</option>
-                  <option value="URGENT">Urgent</option>
-                </select>
+                  onChange={handlePriorityFilter}
+                  options={[
+                    { value: 'all', label: 'All Priorities' },
+                    { value: 'LOW', label: 'Low' },
+                    { value: 'MEDIUM', label: 'Medium' },
+                    { value: 'HIGH', label: 'High' },
+                    { value: 'URGENT', label: 'Urgent' },
+                  ]}
+                  className="w-40"
+                />
 
                 <button 
                   onClick={() => setIsFilterOpen(!isFilterOpen)}
@@ -395,15 +400,18 @@ export function PettyCashListPage() {
                     <div className="space-y-3 relative z-10">
                       <div className="flex justify-between items-start gap-2">
                         <StatusBadge state={req.state} />
-                        <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                          req.priority === 'URGENT' 
-                            ? 'bg-error/15 text-error' 
-                            : req.priority === 'HIGH'
-                            ? 'bg-warning/15 text-warning'
-                            : 'bg-base-300 text-base-content/60'
-                        }`}>
+                        <Badge 
+                          variant={
+                            req.priority === 'URGENT' || req.priority === 'HIGH'
+                              ? 'destructive' 
+                              : req.priority === 'MEDIUM'
+                              ? 'secondary'
+                              : 'outline'
+                          }
+                          className="font-bold text-[10px] px-2 py-0.5 rounded"
+                        >
                           {req.priority}
-                        </span>
+                        </Badge>
                       </div>
 
                       <div className="space-y-1">
@@ -512,15 +520,16 @@ export function PettyCashListPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <label className="label text-xs font-bold text-base-content/75 uppercase tracking-wider">Priority</label>
-                      <select
-                        className="select select-bordered w-full rounded-xl bg-base-100/40 border-base-content/10 text-sm focus:bg-base-100"
-                        {...register('priority')}
-                      >
-                        <option value="LOW">Low</option>
-                        <option value="MEDIUM">Medium</option>
-                        <option value="HIGH">High</option>
-                        <option value="URGENT">Urgent</option>
-                      </select>
+                      <Select
+                        value={watchedPriority}
+                        onChange={(val) => setValue('priority', val)}
+                        options={[
+                          { value: 'LOW', label: 'Low' },
+                          { value: 'MEDIUM', label: 'Medium' },
+                          { value: 'HIGH', label: 'High' },
+                          { value: 'URGENT', label: 'Urgent' },
+                        ]}
+                      />
                     </div>
 
                     <div>
@@ -574,14 +583,15 @@ export function PettyCashListPage() {
 
                       <div className="md:col-span-3">
                         <label className="label text-[10px] font-bold text-base-content/65 uppercase py-1">Category</label>
-                        <select
-                          className="select select-bordered select-sm w-full rounded-lg bg-base-100/50 border-base-content/10 text-xs focus:bg-base-100"
-                          {...register(`line_items.${index}.category`)}
-                        >
-                          {LINE_ITEM_CATEGORIES.map(cat => (
-                            <option key={cat} value={cat}>{cat}</option>
-                          ))}
-                        </select>
+                        <Select
+                          value={watchedLineItems?.[index]?.category}
+                          onChange={(val) => setValue(`line_items.${index}.category`, val)}
+                          options={LINE_ITEM_CATEGORIES.map(cat => ({
+                            value: cat,
+                            label: cat
+                          }))}
+                          className="[&>button]:h-8 [&>button]:py-1 [&>button]:rounded-lg [&>button]:text-xs"
+                        />
                       </div>
 
                       <div className="md:col-span-2">
@@ -799,15 +809,18 @@ export function PettyCashListPage() {
               <div className="grid grid-cols-2 gap-4 border-t border-b border-base-content/5 py-4">
                 <div>
                   <h4 className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Priority</h4>
-                  <span className={`inline-block text-[10px] font-black px-2.5 py-0.5 rounded-md mt-1 ${
-                    selectedReq.priority === 'URGENT' 
-                      ? 'bg-error/15 text-error' 
-                      : selectedReq.priority === 'HIGH'
-                      ? 'bg-warning/15 text-warning'
-                      : 'bg-base-300 text-base-content/60'
-                  }`}>
+                  <Badge 
+                    variant={
+                      selectedReq.priority === 'URGENT' || selectedReq.priority === 'HIGH'
+                        ? 'destructive' 
+                        : selectedReq.priority === 'MEDIUM'
+                        ? 'secondary'
+                        : 'outline'
+                    }
+                    className="font-bold text-[10px] px-2 py-0.5 rounded mt-1"
+                  >
                     {selectedReq.priority}
-                  </span>
+                  </Badge>
                 </div>
                 <div>
                   <h4 className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Needed By</h4>

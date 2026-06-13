@@ -7,6 +7,9 @@ import { pettyCashApi } from '../api/pettyCashApi';
 import { PageTransition } from '@/shared/components/ui/PageTransition';
 import { StatusBadge } from '@/shared/components/ui/StatusBadge';
 import { toast } from 'sonner';
+import { Select } from '@/shared/components/ui/Select';
+import { Badge } from '@/components/ui/badge';
+
 import { 
   ArrowLeft, 
   Calendar, 
@@ -213,15 +216,12 @@ export function PettyCashDetailPage() {
   const isHR = role === 'HR' || role === 'ADMIN';
 
   // Can current user approve?
-  const deptId = user?.profile?.department?.id;
-  const requestDeptId = request.department_details?.id;
-  const isSameDept = deptId === requestDeptId;
-  const canApprove = (isPendingTL && isSameDept && isTL) || 
+  const canApprove = (isPendingTL && isTL) || 
                       (isPendingCEO && isCEO) ||
                       (['draft', 'pending_tl_approval', 'pending_ceo_approval'].includes(request.state) && isCEO);
 
   // Can current user reject?
-  const canReject = (isPendingTL && isSameDept && (isTL || isCEO)) || 
+  const canReject = (isPendingTL && (isTL || isCEO)) || 
                      (isPendingCEO && isCEO);
 
   // Can current user disburse?
@@ -493,15 +493,18 @@ export function PettyCashDetailPage() {
                 <div className="space-y-1">
                   <span className="text-base-content/40 uppercase font-bold tracking-wider">Priority</span>
                   <div className="flex items-center mt-1">
-                    <span className={`badge border-0 font-bold px-2.5 rounded text-[10px] ${
-                      request.priority === 'URGENT' 
-                        ? 'bg-error/15 text-error' 
-                        : request.priority === 'HIGH'
-                        ? 'bg-warning/15 text-warning'
-                        : 'bg-base-300 text-base-content/60'
-                     }`}>
+                    <Badge 
+                      variant={
+                        request.priority === 'URGENT' || request.priority === 'HIGH'
+                          ? 'destructive' 
+                          : request.priority === 'MEDIUM'
+                          ? 'secondary'
+                          : 'outline'
+                      }
+                      className="font-bold text-[10px] px-2 py-0.5 rounded"
+                    >
                       {request.priority}
-                    </span>
+                    </Badge>
                   </div>
                 </div>
               </div>
@@ -889,16 +892,16 @@ export function PettyCashDetailPage() {
                     </div>
                     <div className="space-y-1">
                       <label className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">Priority</label>
-                      <select
-                        className="select select-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-xs focus:border-success"
+                      <Select
                         value={approvePriority}
-                        onChange={(e) => setApprovePriority(e.target.value)}
-                      >
-                        <option value="LOW">LOW</option>
-                        <option value="MEDIUM">MEDIUM</option>
-                        <option value="HIGH">HIGH</option>
-                        <option value="URGENT">URGENT</option>
-                      </select>
+                        onChange={setApprovePriority}
+                        options={[
+                          { value: 'LOW', label: 'LOW' },
+                          { value: 'MEDIUM', label: 'MEDIUM' },
+                          { value: 'HIGH', label: 'HIGH' },
+                          { value: 'URGENT', label: 'URGENT' },
+                        ]}
+                      />
                     </div>
                   </div>
                 )}
@@ -1022,15 +1025,15 @@ export function PettyCashDetailPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="label text-[10px] font-bold text-base-content/75 uppercase tracking-wider">Payment Method</label>
-                    <select
-                      className="select select-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-sm"
+                    <Select
                       value={paymentMethod}
-                      onChange={(e) => setPaymentMethod(e.target.value)}
-                    >
-                      <option value="CASH">CASH</option>
-                      <option value="BANK_TRANSFER">BANK TRANSFER</option>
-                      <option value="CHEQUE">CHEQUE</option>
-                    </select>
+                      onChange={setPaymentMethod}
+                      options={[
+                        { value: 'CASH', label: 'CASH' },
+                        { value: 'BANK_TRANSFER', label: 'BANK TRANSFER' },
+                        { value: 'CHEQUE', label: 'CHEQUE' },
+                      ]}
+                    />
                   </div>
 
                   <div>

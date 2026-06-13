@@ -4,6 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
+import { SpotlightNew } from '@/shared/components/ui/SpotlightNew';
 
 export function AppLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -28,9 +29,9 @@ export function AppLayout() {
       <Sidebar isCollapsed={isSidebarCollapsed} onToggle={toggleSidebar} />
 
       {/* Mobile Navigation Drawer */}
-      <MobileNav 
-        isOpen={isMobileMenuOpen} 
-        onClose={() => setIsMobileMenuOpen(false)} 
+      <MobileNav
+        isOpen={isMobileMenuOpen}
+        onClose={() => setIsMobileMenuOpen(false)}
       />
 
       {/* Main Content Workspace Container */}
@@ -39,8 +40,10 @@ export function AppLayout() {
         <Header onMenuToggle={() => setIsMobileMenuOpen(true)} />
 
         {/* Dynamic Route Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gradient-to-tr from-base-300/30 via-base-100 to-base-100">
-          <div className="max-w-7xl mx-auto w-full">
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gradient-to-tr from-base-300/30 via-base-100 to-base-100 relative">
+          <SpotlightNew />
+
+          <div className="max-w-7xl mx-auto w-full relative z-10">
             <AnimatePresence mode="wait">
               <motion.div
                 key={location.pathname}
