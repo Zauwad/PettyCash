@@ -52,6 +52,15 @@ class PettyCashRequest(models.Model):
     )
     needed_by = models.DateField()
     rejection_reason = models.TextField(blank=True, null=True)
+    
+    tl_approval_note = models.TextField(blank=True, null=True)
+    ceo_approval_note = models.TextField(blank=True, null=True)
+    hr_disbursement_note = models.TextField(blank=True, null=True)
+    tl_approved_amount = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    tl_approved_needed_by = models.DateField(blank=True, null=True)
+    ceo_approved_amount = models.DecimalField(max_digits=12, decimal_places=2, blank=True, null=True)
+    ceo_approved_needed_by = models.DateField(blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -76,69 +85,120 @@ class PettyCashRequest(models.Model):
                 f"department budget (৳{remaining})."
             )
 
-    @transition(
-        field=state, 
-        source='pending_tl_approval', 
-        target=RETURN_VALUE('approved', 'pending_ceo_approval')
-    )
-    def tl_approve(self, approved_amount=None):
+    @transition(field=state, source='pending_tl_approval', target='pending_ceo_approval')
+    def tl_approve(self, amount, needed_by, priority, note):
         """
-        TL approves the request. Routes to CEO if amount exceeds TL limit,
-        otherwise transitions directly to Approved.
+        TL approves and potentially edits the request. Routes to CEO.
         """
-        self.amount_approved = approved_amount or self.amount_requested
-        tl_limit = self.department.tl_approval_limit
-        if self.amount_approved > tl_limit:
-            return 'pending_ceo_approval'
-        return 'approved'
+        if not note or not note.strip():
+            raise ValidationError("An approval note is required.")
+        self.tl_approved_amount = amount
+        self.tl_approved_needed_by = needed_by
+        self.tl_approval_note = note
+        self.reason = note
+        
+        self.amount_approved = amount
+        self.needed_by = needed_by
+        self.priority = priority
 
-    @transition(field=state, source='pending_ceo_approval', target='approved')
-    def ceo_approve(self, approved_amount=None):
+    @transition(field=state, source='pending_ceo_approval', target='pending_hr_disbursement')
+    def ceo_approve(self, amount, needed_by, note):
         """
-        CEO approves the escalated request.
+        CEO approves the request. Routes to HR disbursement.
         """
-        if approved_amount:
-            self.amount_approved = approved_amount
-        else:
-            self.amount_approved = self.amount_requested
+        if not note or not note.strip():
+            raise ValidationError("An approval note is required.")
+        self.ceo_approved_amount = amount
+        self.ceo_approved_needed_by = needed_by
+        self.ceo_approval_note = note
+        self.reason = note
+        
+        self.amount_approved = amount
+        self.needed_by = needed_by
 
-    @transition(field=state, source=['pending_tl_approval', 'pending_ceo_approval'], target='rejected')
-    def reject(self, reason):
+    @transition(field=state, source=['draft', 'pending_tl_approval', 'pending_ceo_approval'], target='pending_hr_disbursement')
+    def ceo_direct_approve(self, amount, note):
         """
-        Rejects the request, capturing the required reason.
+        CEO direct superpower approval.
+        """
+        if not note or not note.strip():
+            raise ValidationError("An approval note is required.")
+        self.ceo_approved_amount = amount
+        self.ceo_approval_note = note
+        self.reason = note
+        self.amount_approved = amount
+
+    @transition(field=state, source='pending_ceo_approval', target='rejected_by_ceo')
+    def ceo_reject(self, reason):
+        """
+        CEO rejects the request. Sent back to employee.
         """
         if not reason or not reason.strip():
             raise ValidationError("A rejection reason is required.")
         self.rejection_reason = reason
+        self.reason = reason
+
+    @transition(field=state, source='rejected_by_ceo', target='pending_ceo_approval')
+    def employee_resubmit(self, amount, needed_by):
+        """
+        Employee edits and resubmits directly to CEO.
+        """
+        self.amount_requested = amount
+        self.needed_by = needed_by
+        self.amount_approved = 0.00
+        self.rejection_reason = None
+        
+        dept = self.department
+        remaining = dept.monthly_budget - dept.budget_spent_this_month
+        if self.amount_requested > remaining:
+            raise ValidationError(
+                f"Request amount (৳{self.amount_requested}) exceeds remaining "
+                f"department budget (৳{remaining})."
+            )
+
+    @transition(field=state, source='pending_tl_approval', target='rejected')
+    def tl_reject(self, reason):
+        """
+        TL rejects the request.
+        """
+        if not reason or not reason.strip():
+            raise ValidationError("A rejection reason is required.")
+        self.rejection_reason = reason
+        self.reason = reason
 
     @transition(field=state, source='rejected', target='draft')
     def amend(self):
         """
-        Resets a rejected request to draft to allow editing.
+        Resets request to draft for employee correction.
         """
         self.rejection_reason = None
         self.amount_approved = 0.00
 
-    @transition(field=state, source=['draft', 'pending_tl_approval'], target='cancelled')
+    @transition(field=state, source=['draft', 'pending_tl_approval', 'pending_ceo_approval', 'rejected_by_ceo'], target='cancelled')
     def cancel(self):
         """
-        Cancels the request (by the requester).
+        Cancels the request.
         """
         pass
 
-    @transition(field=state, source=['approved', 'partially_disbursed'], target='partially_disbursed')
-    def partial_disburse(self, amount):
+    @transition(
+        field=state,
+        source=['pending_hr_disbursement', 'partially_disbursed'],
+        target=RETURN_VALUE('partially_disbursed', 'disbursed')
+    )
+    def hr_disburse(self, amount, note):
         """
-        Tracks a partial payout. Keeps the request in partially_disbursed state.
+        HR disburses the request.
         """
-        pass
-
-    @transition(field=state, source=['approved', 'partially_disbursed'], target='disbursed')
-    def final_disburse(self, amount):
-        """
-        Locks the request as fully paid out.
-        """
-        pass
+        if not note or not note.strip():
+            raise ValidationError("A disbursement note is required.")
+        from decimal import Decimal
+        self.amount_disbursed = self.amount_disbursed + Decimal(str(amount))
+        self.hr_disbursement_note = note
+        self.reason = note
+        if self.amount_disbursed >= self.amount_approved:
+            return 'disbursed'
+        return 'partially_disbursed'
 
 
 class PettyCashLineItem(models.Model):

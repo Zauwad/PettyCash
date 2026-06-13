@@ -113,6 +113,14 @@ class LeaveRequest(models.Model):
     )
     
     rejection_reason = models.TextField(blank=True, null=True)
+    tl_approval_note = models.TextField(blank=True, null=True)
+    gm_approval_note = models.TextField(blank=True, null=True)
+    ceo_approval_note = models.TextField(blank=True, null=True)
+    tl_approved_start_date = models.DateField(blank=True, null=True)
+    tl_approved_end_date = models.DateField(blank=True, null=True)
+    gm_approved_start_date = models.DateField(blank=True, null=True)
+    gm_approved_end_date = models.DateField(blank=True, null=True)
+
     delegate_to = models.ForeignKey(
         User,
         on_delete=models.SET_NULL,
@@ -144,28 +152,51 @@ class LeaveRequest(models.Model):
         if self.start_date > self.end_date:
             raise ValidationError("Start date cannot be after end date.")
 
-    @transition(field=state, source='pending_tl_approval', target='approved')
-    def tl_approve(self):
+    @transition(field=state, source='pending_tl_approval', target='pending_gm_approval')
+    def tl_approve(self, start_date, end_date, note):
         """
-        Approved directly by Team Lead.
+        Approved and potentially modified by Team Lead, routes to GM.
         """
-        pass
+        if not note or not note.strip():
+            raise ValidationError("An approval note is required.")
+        self.tl_approved_start_date = start_date
+        self.tl_approved_end_date = end_date
+        self.tl_approval_note = note
+        self.reason = note
+        
+        self.start_date = start_date
+        self.end_date = end_date
+        from leave.utils import calculate_working_days
+        self.working_days_requested = calculate_working_days(self.organization, start_date, end_date)
 
-    @transition(field=state, source='pending_tl_approval', target='pending_ceo_approval')
-    def escalate(self):
+    @transition(field=state, source='pending_gm_approval', target='approved')
+    def gm_approve(self, start_date, end_date, note):
         """
-        Escalates the leave request to CEO approval if required.
+        Approved and potentially modified by GM.
         """
-        pass
+        if not note or not note.strip():
+            raise ValidationError("An approval note is required.")
+        self.gm_approved_start_date = start_date
+        self.gm_approved_end_date = end_date
+        self.gm_approval_note = note
+        self.reason = note
+        
+        self.start_date = start_date
+        self.end_date = end_date
+        from leave.utils import calculate_working_days
+        self.working_days_requested = calculate_working_days(self.organization, start_date, end_date)
 
-    @transition(field=state, source='pending_ceo_approval', target='approved')
-    def ceo_approve(self):
+    @transition(field=state, source=['draft', 'pending_tl_approval', 'pending_gm_approval'], target='approved')
+    def ceo_direct_approve(self, note):
         """
-        Approved by CEO.
+        Superpower approval by CEO directly.
         """
-        pass
+        if not note or not note.strip():
+            raise ValidationError("An approval note is required.")
+        self.ceo_approval_note = note
+        self.reason = note
 
-    @transition(field=state, source=['pending_tl_approval', 'pending_ceo_approval'], target='rejected')
+    @transition(field=state, source=['pending_tl_approval', 'pending_gm_approval'], target='rejected')
     def reject(self, reason):
         """
         Rejects the request, requiring a reason.
@@ -173,6 +204,7 @@ class LeaveRequest(models.Model):
         if not reason or not reason.strip():
             raise ValidationError("A rejection reason is required.")
         self.rejection_reason = reason
+        self.reason = reason
 
     @transition(field=state, source='rejected', target='draft')
     def amend(self):
@@ -181,12 +213,11 @@ class LeaveRequest(models.Model):
         """
         self.rejection_reason = None
 
-    @transition(field=state, source=['draft', 'pending_tl_approval', 'approved'], target='cancelled')
+    @transition(field=state, source=['draft', 'pending_tl_approval', 'pending_gm_approval', 'approved'], target='cancelled')
     def cancel(self):
         """
         Cancels the leave request. Reverts deducted balance days.
         """
-        # Reversion logic will be handled inside view/serializer transaction
         pass
 
 

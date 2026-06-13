@@ -19,6 +19,9 @@ from pettycash.serializers import (
     DisbursementSerializer
 )
 
+from django.db.models import Q
+from accounts.models import UserProfile
+
 class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     """
     ViewSet to manage Petty Cash Requisitions.
@@ -32,6 +35,31 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     
     filterset_fields = ['state', 'priority', 'department']
     search_fields = ['title', 'description', 'requester__username', 'requester__email']
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        user = self.request.user
+        
+        if not user or user.is_anonymous:
+            return queryset.none()
+            
+        role = user.profile.role
+        
+        if self.action == 'list':
+            # Employee can only see their own requests
+            if role == UserRole.EMPLOYEE:
+                return queryset.filter(requester=user)
+                
+            # Team Lead can see their own requests AND those of their department
+            elif role == UserRole.TEAM_LEAD:
+                dept = user.profile.department
+                return queryset.filter(
+                    Q(requester=user) | 
+                    Q(department=dept)
+                )
+            
+        # CEO / Admin / GENERAL_MANAGER / HR see all requests in the organization (handled by mixin)
+        return queryset
 
     def create(self, request, *args, **kwargs):
         if request.user.profile.role == UserRole.CEO:
@@ -68,7 +96,7 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
-        """Approves the request. Escales to CEO if above TL limit."""
+        """Approves the request, supporting TL modifications and CEO superpower direct approval."""
         obj = self.get_object()
         user = request.user
         role = user.profile.role
@@ -78,28 +106,63 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
         if not is_authorized_approver(user, obj, 'PETTY_CASH'):
             return Response({"detail": "You do not have approval clearance for this request in its current state."}, status=status.HTTP_403_FORBIDDEN)
             
-        approved_amount = request.data.get('approved_amount', obj.amount_requested)
+        note = request.data.get('note') or request.data.get('reason')
+        if not note:
+            return Response({"note": ["An approval note/reason is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        # Get optional modifications
+        amount = request.data.get('amount')
+        if amount is not None:
+            try:
+                amount = float(amount)
+            except (TypeError, ValueError):
+                return Response({"amount": ["A valid amount is required."]}, status=status.HTTP_400_BAD_REQUEST)
+        else:
+            amount = obj.amount_requested if obj.amount_approved == 0 else obj.amount_approved
+
+        needed_by_str = request.data.get('needed_by')
+        if needed_by_str:
+            from datetime import datetime
+            needed_by = datetime.strptime(needed_by_str, "%Y-%m-%d").date() if isinstance(needed_by_str, str) else needed_by_str
+        else:
+            needed_by = obj.needed_by
+
+        priority = request.data.get('priority', obj.priority)
+        
+        from datetime import date
+        from core.models import ApprovalDelegation
+        today = date.today()
+        delegator_ids = list(ApprovalDelegation.objects.filter(
+            delegate=user,
+            scope__in=['PETTY_CASH', 'ALL'],
+            start_date__lte=today,
+            end_date__gte=today,
+            is_active=True
+        ).values_list('delegator_id', flat=True))
+        
+        is_ceo = (role == UserRole.CEO) or (role == UserRole.ADMIN) or UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.CEO).exists()
         
         try:
             with transaction.atomic():
-                # Perform the transition based on the request's current state
-                if obj.state == 'pending_tl_approval':
-                    obj.tl_approve(approved_amount)
+                if is_ceo and obj.state in ['draft', 'pending_tl_approval', 'pending_ceo_approval']:
+                    obj.ceo_direct_approve(amount, note)
+                elif obj.state == 'pending_tl_approval':
+                    obj.tl_approve(amount, needed_by, priority, note)
                 elif obj.state == 'pending_ceo_approval':
-                    obj.ceo_approve(approved_amount)
+                    obj.ceo_approve(amount, needed_by, note)
                 else:
                     raise ValidationError("Request is not in a state that can be approved.")
                 
                 obj.save()
             return Response(self.get_serializer(obj).data)
         except ValidationError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": str(e.message if hasattr(e, 'message') else e)}, status=status.HTTP_400_BAD_REQUEST)
         except TransitionNotAllowed:
             return Response({"detail": "Cannot approve request in its current state."}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
     def reject(self, request, uuid=None):
-        """Rejects the request (requires a reason)."""
+        """Rejects the request (requires a reason). Routes to rejected (TL) or rejected_by_ceo (CEO)."""
         obj = self.get_object()
         user = request.user
         role = user.profile.role
@@ -108,19 +171,68 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
         if not is_authorized_approver(user, obj, 'PETTY_CASH'):
             return Response({"detail": "You do not have authorization to reject this request in its current state."}, status=status.HTTP_403_FORBIDDEN)
             
-        reason = request.data.get('reason')
+        reason = request.data.get('reason') or request.data.get('note')
         if not reason:
             return Response({"reason": ["This field is required on rejection."]}, status=status.HTTP_400_BAD_REQUEST)
             
+        from datetime import date
+        from core.models import ApprovalDelegation
+        today = date.today()
+        delegator_ids = list(ApprovalDelegation.objects.filter(
+            delegate=user,
+            scope__in=['PETTY_CASH', 'ALL'],
+            start_date__lte=today,
+            end_date__gte=today,
+            is_active=True
+        ).values_list('delegator_id', flat=True))
+        
+        is_ceo = (role == UserRole.CEO) or (role == UserRole.ADMIN) or UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.CEO).exists()
+        
         try:
             with transaction.atomic():
-                obj.reject(reason)
+                if obj.state == 'pending_ceo_approval' and is_ceo:
+                    obj.ceo_reject(reason)
+                elif obj.state == 'pending_tl_approval':
+                    obj.tl_reject(reason)
+                else:
+                    raise ValidationError("Request is not in a state that can be rejected.")
                 obj.save()
             return Response(self.get_serializer(obj).data)
         except ValidationError as e:
-            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": str(e.message if hasattr(e, 'message') else e)}, status=status.HTTP_400_BAD_REQUEST)
         except TransitionNotAllowed:
             return Response({"detail": "Cannot reject request in its current state."}, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['post'])
+    def resubmit(self, request, uuid=None):
+        """Allows employee to edit and resubmit request directly to CEO from rejected_by_ceo state."""
+        obj = self.get_object()
+        if obj.requester != request.user:
+            return Response({"detail": "Only the requester can resubmit this request."}, status=status.HTTP_403_FORBIDDEN)
+            
+        amount = request.data.get('amount')
+        needed_by_str = request.data.get('needed_by')
+        
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            return Response({"amount": ["A valid amount is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from datetime import datetime
+        try:
+            needed_by = datetime.strptime(needed_by_str, "%Y-%m-%d").date() if isinstance(needed_by_str, str) else needed_by_str
+        except Exception:
+            return Response({"needed_by": ["A valid needed_by date is required (YYYY-MM-DD)."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            with transaction.atomic():
+                obj.employee_resubmit(amount, needed_by)
+                obj.save()
+            return Response(self.get_serializer(obj).data)
+        except ValidationError as e:
+            return Response({"detail": str(e.message if hasattr(e, 'message') else e)}, status=status.HTTP_400_BAD_REQUEST)
+        except TransitionNotAllowed:
+            return Response({"detail": "Cannot resubmit request from current state."}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
     def amend(self, request, uuid=None):
@@ -157,24 +269,27 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def disburse(self, request, uuid=None):
         """
-        Performs a payout disbursement.
+        Performs a payout disbursement by HR.
         Tracks running total and updates department's budget spent metric.
         """
         obj = self.get_object()
         user = request.user
         
-        # Accounts clearance check (Admin or CEO)
-        if user.profile.role not in [UserRole.ADMIN, UserRole.CEO]:
-            return Response({"detail": "Only accounts team (Admins/CEOs) can disburse funds."}, status=status.HTTP_403_FORBIDDEN)
+        from core.utils import is_authorized_approver
+        if not is_authorized_approver(user, obj, 'PETTY_CASH'):
+            return Response({"detail": "Only HR and Admins can disburse funds for requests pending HR disbursement."}, status=status.HTTP_403_FORBIDDEN)
             
-        if obj.state not in ['approved', 'partially_disbursed']:
-            return Response({"detail": "Funds can only be disbursed for approved or partially disbursed requests."}, status=status.HTTP_400_BAD_REQUEST)
+        if obj.state not in ['pending_hr_disbursement', 'partially_disbursed']:
+            return Response({"detail": "Funds can only be disbursed for requests pending HR disbursement."}, status=status.HTTP_400_BAD_REQUEST)
             
         amount = request.data.get('amount')
         payment_method = request.data.get('payment_method', 'CASH')
         reference_number = request.data.get('reference_number', '')
-        notes = request.data.get('notes', '')
+        notes = request.data.get('notes') or request.data.get('note')
         
+        if not notes:
+            return Response({"notes": ["A disbursement note/reason is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            
         try:
             amount = float(amount)
         except (TypeError, ValueError):
@@ -187,6 +302,9 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
             
         try:
             with transaction.atomic():
+                # FSM state transition
+                obj.hr_disburse(amount, notes)
+                
                 # Create Disbursement log
                 Disbursement.objects.create(
                     request=obj,
@@ -197,20 +315,11 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                     notes=notes
                 )
                 
-                # Update request balances
-                obj.amount_disbursed = float(obj.amount_disbursed) + amount
-                
                 # Deduct from department monthly budget
                 dept = obj.department
                 dept.budget_spent_this_month = float(dept.budget_spent_this_month) + amount
                 dept.save()
                 
-                # State transition
-                if obj.amount_disbursed >= obj.amount_approved:
-                    obj.final_disburse(amount)
-                else:
-                    obj.partial_disburse(amount)
-                    
                 obj.save()
                 
             return Response(self.get_serializer(obj).data)
@@ -222,9 +331,9 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
         """Allows uploading files scoped to this request."""
         obj = self.get_object()
         
-        # Only draft requests can have attachments added
-        if obj.state != 'draft':
-            return Response({"detail": "Attachments can only be added to draft requests."}, status=status.HTTP_400_BAD_REQUEST)
+        # Only draft/rejected_by_ceo requests can have attachments added
+        if obj.state not in ['draft', 'rejected_by_ceo']:
+            return Response({"detail": "Attachments can only be added to draft or rejected by CEO requests."}, status=status.HTTP_400_BAD_REQUEST)
             
         files = request.FILES.getlist('files')
         if not files:
@@ -278,13 +387,18 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                     if not is_authorized_approver(request.user, pcr, 'PETTY_CASH'):
                         raise ValidationError("You do not have authorization to act on this request.")
                         
+                    note = reason or "Bulk approved"
                     if action_type == 'approve':
                         if pcr.state == 'pending_tl_approval':
-                            pcr.tl_approve()
+                            pcr.tl_approve(pcr.amount_requested, pcr.needed_by, pcr.priority, note)
                         elif pcr.state == 'pending_ceo_approval':
-                            pcr.ceo_approve()
+                            pcr.ceo_approve(pcr.amount_approved, pcr.needed_by, note)
                     elif action_type == 'reject':
-                        pcr.reject(reason)
+                        note = reason or "Bulk rejected"
+                        if pcr.state == 'pending_tl_approval':
+                            pcr.tl_reject(note)
+                        elif pcr.state == 'pending_ceo_approval':
+                            pcr.ceo_reject(note)
                         
                     pcr.save()
                     results["success"].append(req_id)

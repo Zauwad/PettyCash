@@ -32,6 +32,8 @@ class Command(BaseCommand):
         for org_slug in ["amaze", "mynt", "braincount"]:
             seed_usernames.append(f"{org_slug}_ceo")
             seed_usernames.append(f"{org_slug}_admin")
+            seed_usernames.append(f"{org_slug}_gm")
+            seed_usernames.append(f"{org_slug}_hr")
             for dept_slug in ["eng", "mkt", "hr", "fin"]:
                 seed_usernames.append(f"{org_slug}_{dept_slug}_lead")
                 seed_usernames.append(f"{org_slug}_{dept_slug}_emp1")
@@ -82,7 +84,7 @@ class Command(BaseCommand):
                 )
                 leave_types[lc["code"]] = lt
 
-            # 3. Create CEO and Admin
+            # 3. Create CEO, Admin, General Manager, and HR
             ceo_user = User.objects.create_user(
                 username=f"{org.slug}_ceo",
                 email=f"ceo@{org.slug}.com",
@@ -97,7 +99,7 @@ class Command(BaseCommand):
                 employee_id=f"{org.slug.upper()}01",
                 phone="01711111111"
             )
-
+ 
             admin_user = User.objects.create_user(
                 username=f"{org.slug}_admin",
                 email=f"admin@{org.slug}.com",
@@ -112,6 +114,38 @@ class Command(BaseCommand):
                 employee_id=f"{org.slug.upper()}02",
                 phone="01722222222"
             )
+ 
+            gm_user = User.objects.create_user(
+                username=f"{org.slug}_gm",
+                email=f"gm@{org.slug}.com",
+                password="password123",
+                first_name="General",
+                last_name="Manager"
+            )
+            UserProfile.objects.create(
+                user=gm_user,
+                organization=org,
+                role=UserRole.GENERAL_MANAGER,
+                employee_id=f"{org.slug.upper()}03",
+                phone="01755555555"
+            )
+            self.initialize_balances(gm_user, leave_types)
+ 
+            hr_user = User.objects.create_user(
+                username=f"{org.slug}_hr",
+                email=f"hr@{org.slug}.com",
+                password="password123",
+                first_name="Human",
+                last_name="Resources"
+            )
+            UserProfile.objects.create(
+                user=hr_user,
+                organization=org,
+                role=UserRole.HR,
+                employee_id=f"{org.slug.upper()}04",
+                phone="01766666666"
+            )
+            self.initialize_balances(hr_user, leave_types)
 
             # 4. Seed Departments, TLs, and Employees
             for dc in dept_configs:
@@ -242,7 +276,7 @@ class Command(BaseCommand):
             category="Travel & Entertainment"
         )
 
-        # 3. Petty Cash Request - Approved
+        # 3. Petty Cash Request - Pending HR Disbursement
         pc_approved = PettyCashRequest.objects.create(
             organization=org,
             department=dept,
@@ -251,7 +285,7 @@ class Command(BaseCommand):
             description="Old router died, buying a dual-band router immediately.",
             amount_requested=6500.00,
             amount_approved=6500.00,
-            state="approved",
+            state="pending_hr_disbursement",
             priority="HIGH",
             needed_by=date.today()
         )

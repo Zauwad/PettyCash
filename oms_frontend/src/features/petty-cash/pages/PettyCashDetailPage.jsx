@@ -1,11 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pettyCashApi } from '../api/pettyCashApi';
 import { PageTransition } from '@/shared/components/ui/PageTransition';
-import { LoadingSkeleton } from '@/shared/components/ui/LoadingSkeleton';
 import { StatusBadge } from '@/shared/components/ui/StatusBadge';
 import { toast } from 'sonner';
 import { 
@@ -20,16 +19,15 @@ import {
   XCircle, 
   RotateCcw,
   Ban,
-  Wallet,
   Coins,
   Send,
-  MessageSquare,
-  Eye
+  Eye,
+  X,
+  History
 } from 'lucide-react';
 
 export function PettyCashDetailPage() {
   const { uuid } = useParams();
-  const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const role = user?.profile?.role || user?.role;
@@ -40,6 +38,17 @@ export function PettyCashDetailPage() {
   // Rejection reason input state
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
+
+  // Approval modal states
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approveAmount, setApproveAmount] = useState('');
+  const [approveNeededBy, setApproveNeededBy] = useState('');
+  const [approvePriority, setApprovePriority] = useState('MEDIUM');
+  const [approveNote, setApproveNote] = useState('');
+
+  // Resubmit inline form states
+  const [resubmitAmount, setResubmitAmount] = useState('');
+  const [resubmitNeededBy, setResubmitNeededBy] = useState('');
 
   // Disbursement modal input states
   const [showDisburseModal, setShowDisburseModal] = useState(false);
@@ -58,6 +67,17 @@ export function PettyCashDetailPage() {
     queryKey: ['petty-cash-detail', uuid],
   };
 
+  // Pre-fill states when request is loaded
+  useEffect(() => {
+    if (request) {
+      setResubmitAmount(request.amount_requested);
+      setResubmitNeededBy(request.needed_by);
+      setApproveAmount(request.amount_approved && parseFloat(request.amount_approved) > 0 ? request.amount_approved : request.amount_requested);
+      setApproveNeededBy(request.needed_by);
+      setApprovePriority(request.priority);
+    }
+  }, [request]);
+
   // Mutation: Submit Request
   const submitMutation = useMutation({
     mutationFn: () => pettyCashApi.submit(uuid),
@@ -72,9 +92,11 @@ export function PettyCashDetailPage() {
 
   // Mutation: Approve Request (Manager / CEO)
   const approveMutation = useMutation({
-    mutationFn: (amount) => pettyCashApi.approve(uuid, amount),
+    mutationFn: (data) => pettyCashApi.approve(uuid, data),
     onSuccess: () => {
       toast.success('Request approved successfully!');
+      setShowApproveModal(false);
+      setApproveNote('');
       queryClient.invalidateQueries(queryParams);
     },
     onError: (err) => {
@@ -93,6 +115,18 @@ export function PettyCashDetailPage() {
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to reject request.');
+    }
+  });
+
+  // Mutation: Resubmit Request (from rejected_by_ceo fallback)
+  const resubmitMutation = useMutation({
+    mutationFn: (data) => pettyCashApi.resubmit(uuid, data),
+    onSuccess: () => {
+      toast.success('Voucher resubmitted directly to CEO!');
+      queryClient.invalidateQueries(queryParams);
+    },
+    onError: (err) => {
+      toast.error(err.response?.data?.detail || 'Failed to resubmit request.');
     }
   });
 
@@ -171,19 +205,43 @@ export function PettyCashDetailPage() {
   const isOwner = request.requester_email === user.email;
   const isPendingTL = request.state === 'pending_tl_approval';
   const isPendingCEO = request.state === 'pending_ceo_approval';
-  const isApproved = request.state === 'approved';
+  const isPendingHR = request.state === 'pending_hr_disbursement';
   const isPartiallyDisbursed = request.state === 'partially_disbursed';
-  const isAccounts = ['ADMIN', 'CEO'].includes(role);
+  
+  const isCEO = role === 'CEO' || role === 'ADMIN';
+  const isTL = role === 'TEAM_LEAD';
+  const isHR = role === 'HR' || role === 'ADMIN';
 
-  // Can the current user approve this request?
+  // Can current user approve?
   const deptId = user?.profile?.department?.id;
   const requestDeptId = request.department_details?.id;
   const isSameDept = deptId === requestDeptId;
-  const canApprove = (isPendingTL && isSameDept && role === 'TEAM_LEAD') || 
-                      (isPendingCEO && role === 'CEO');
+  const canApprove = (isPendingTL && isSameDept && isTL) || 
+                      (isPendingCEO && isCEO) ||
+                      (['draft', 'pending_tl_approval', 'pending_ceo_approval'].includes(request.state) && isCEO);
 
-  const handleApprove = () => {
-    approveMutation.mutate(request.amount_requested);
+  // Can current user reject?
+  const canReject = (isPendingTL && isSameDept && (isTL || isCEO)) || 
+                     (isPendingCEO && isCEO);
+
+  // Can current user disburse?
+  const canDisburse = (isPendingHR || isPartiallyDisbursed) && isHR;
+
+  const handleApproveSubmit = (e) => {
+    e.preventDefault();
+    if (!approveNote.trim()) {
+      toast.error('Approval note is required.');
+      return;
+    }
+    const payload = {
+      note: approveNote,
+      amount: parseFloat(approveAmount),
+    };
+    if (!isCEO) {
+      payload.needed_by = approveNeededBy;
+      payload.priority = approvePriority;
+    }
+    approveMutation.mutate(payload);
   };
 
   const handleRejectSubmit = (e) => {
@@ -193,6 +251,18 @@ export function PettyCashDetailPage() {
       return;
     }
     rejectMutation.mutate(rejectionReason);
+  };
+
+  const handleResubmitSubmit = (e) => {
+    e.preventDefault();
+    if (!resubmitAmount || !resubmitNeededBy) {
+      toast.error('Amount and date are required.');
+      return;
+    }
+    resubmitMutation.mutate({
+      amount: parseFloat(resubmitAmount),
+      needed_by: resubmitNeededBy
+    });
   };
 
   const handleDisburseSubmit = (e) => {
@@ -205,17 +275,22 @@ export function PettyCashDetailPage() {
       return;
     }
 
+    if (!disburseNotes.trim()) {
+      toast.error('Disbursement note is required.');
+      return;
+    }
+
     disburseMutation.mutate({
       amount,
       payment_method: paymentMethod,
       reference_number: refNumber,
-      notes: disburseNotes
+      note: disburseNotes
     });
   };
 
   return (
     <PageTransition>
-      <div className="space-y-6">
+      <div className="space-y-6 text-left">
         {/* Back Link */}
         <Link to="/petty-cash" className="btn btn-ghost btn-xs text-base-content/60 hover:text-primary rounded-md gap-1">
           <ArrowLeft className="w-4 h-4" />
@@ -272,27 +347,26 @@ export function PettyCashDetailPage() {
 
             {/* Approver Actions */}
             {canApprove && (
-              <>
-                <button
-                  onClick={handleApprove}
-                  disabled={approveMutation.isPending}
-                  className="btn btn-success text-success-content btn-sm rounded-xl font-bold gap-1 text-xs"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Approve Requisition
-                </button>
-                <button
-                  onClick={() => setShowRejectModal(true)}
-                  className="btn btn-error text-error-content btn-sm rounded-xl font-bold gap-1 text-xs"
-                >
-                  <XCircle className="w-4 h-4" />
-                  Reject Requisition
-                </button>
-              </>
+              <button
+                onClick={() => setShowApproveModal(true)}
+                className="btn btn-success text-success-content btn-sm rounded-xl font-bold gap-1 text-xs"
+              >
+                <CheckCircle2 className="w-4.5 h-4.5" />
+                Approve Requisition
+              </button>
+            )}
+            {canReject && (
+              <button
+                onClick={() => setShowRejectModal(true)}
+                className="btn btn-error text-error-content btn-sm rounded-xl font-bold gap-1 text-xs"
+              >
+                <XCircle className="w-4.5 h-4.5" />
+                Reject Requisition
+              </button>
             )}
 
             {/* Accounts/Admin Payout Actions */}
-            {(isApproved || isPartiallyDisbursed) && isAccounts && (
+            {canDisburse && (
               <button
                 onClick={() => {
                   const remaining = parseFloat(request.amount_approved) - parseFloat(request.amount_disbursed);
@@ -308,9 +382,68 @@ export function PettyCashDetailPage() {
           </div>
         </div>
 
-        {/* Rejection Alert */}
+        {/* CEO Rejection Alert / Fallback form */}
+        {request.state === 'rejected_by_ceo' && (
+          <div className="space-y-4">
+            <div className="alert alert-error rounded-2xl flex items-start gap-4 p-5">
+              <XCircle className="w-6 h-6 text-error mt-0.5 shrink-0" />
+              <div>
+                <h4 className="font-bold text-sm">Voucher Rejected by CEO</h4>
+                <p className="text-xs text-error-content/90 mt-1 font-medium italic text-left">
+                  "{request.rejection_reason}"
+                </p>
+              </div>
+            </div>
+
+            {isOwner && (
+              <div className="glass-panel p-6 rounded-2xl shadow-xl border border-warning/20 bg-warning/5 space-y-4">
+                <h4 className="font-bold text-sm text-warning flex items-center gap-1.5">
+                  <AlertCircle className="w-5 h-5" />
+                  Fallback Correction Form
+                </h4>
+                <p className="text-xs text-base-content/70">
+                  Please update the requisition parameters below. Re-submitting will route the request directly back to the CEO.
+                </p>
+                <form onSubmit={handleResubmitSubmit} className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div className="space-y-1">
+                    <label className="font-semibold text-base-content/60">Adjusted Voucher Amount (৳)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="input input-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-xs focus:border-warning"
+                      value={resubmitAmount}
+                      onChange={(e) => setResubmitAmount(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-semibold text-base-content/60">Needed By Date</label>
+                    <input
+                      type="date"
+                      className="input input-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-xs focus:border-warning"
+                      value={resubmitNeededBy}
+                      onChange={(e) => setResubmitNeededBy(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="col-span-1 sm:col-span-2 flex justify-end gap-2 mt-2">
+                    <button
+                      type="submit"
+                      disabled={resubmitMutation.isPending}
+                      className="btn btn-warning text-warning-content btn-sm rounded-xl font-bold text-xs"
+                    >
+                      {resubmitMutation.isPending ? 'Resubmitting...' : 'Resubmit to CEO'}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TL Rejection Alert */}
         {request.state === 'rejected' && request.rejection_reason && (
-          <div className="alert alert-error rounded-2xl flex items-start gap-4 p-5">
+          <div className="alert alert-error rounded-2xl flex items-start gap-4 p-5 text-left">
             <XCircle className="w-6 h-6 text-error mt-0.5 shrink-0" />
             <div>
               <h4 className="font-bold text-sm">Requisition Rejected</h4>
@@ -318,7 +451,7 @@ export function PettyCashDetailPage() {
                 "{request.rejection_reason}"
               </p>
               <p className="text-[10px] text-error-content/60 mt-3 font-semibold uppercase">
-                Click Amend above to reset this requisition and edit its item details.
+                Click Amend Requisition to reset it to draft.
               </p>
             </div>
           </div>
@@ -366,7 +499,7 @@ export function PettyCashDetailPage() {
                         : request.priority === 'HIGH'
                         ? 'bg-warning/15 text-warning'
                         : 'bg-base-300 text-base-content/60'
-                    }`}>
+                     }`}>
                       {request.priority}
                     </span>
                   </div>
@@ -430,7 +563,7 @@ export function PettyCashDetailPage() {
                         key={file.id} 
                         className="flex flex-col bg-base-300/40 p-4 rounded-xl border border-base-content/5 hover:border-primary/20 transition-all group"
                       >
-                        <div className="flex items-start justify-between gap-2 text-xs">
+                        <div className="flex items-start justify-between gap-2 text-xs text-left">
                           <div className="flex items-center gap-2 overflow-hidden">
                             <FileText className="w-5 h-5 text-primary shrink-0" />
                             <div className="overflow-hidden">
@@ -557,11 +690,11 @@ export function PettyCashDetailPage() {
                 {/* 1. Draft */}
                 <div className="relative">
                   <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
-                    ['draft', 'pending_tl_approval', 'pending_ceo_approval', 'approved', 'partially_disbursed', 'disbursed', 'rejected', 'cancelled'].includes(request.state)
+                    ['draft', 'pending_tl_approval', 'pending_ceo_approval', 'pending_hr_disbursement', 'partially_disbursed', 'disbursed', 'rejected', 'rejected_by_ceo', 'cancelled'].includes(request.state)
                       ? 'bg-success border-success text-success-content'
                       : 'bg-base-200 border-base-content/20'
                   }`}>
-                    {['draft', 'pending_tl_approval', 'pending_ceo_approval', 'approved', 'partially_disbursed', 'disbursed', 'rejected', 'cancelled'].indexOf(request.state) >= 0 && '✓'}
+                    ✓
                   </div>
                   <div>
                     <h4 className="font-bold text-base-content">Voucher Created</h4>
@@ -572,49 +705,47 @@ export function PettyCashDetailPage() {
                 {/* 2. Submitted */}
                 <div className="relative">
                   <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
-                    ['pending_tl_approval', 'pending_ceo_approval', 'approved', 'partially_disbursed', 'disbursed'].includes(request.state)
+                    ['pending_ceo_approval', 'pending_hr_disbursement', 'partially_disbursed', 'disbursed'].includes(request.state) || !!request.tl_approval_note
                       ? 'bg-success border-success text-success-content'
                       : request.state === 'cancelled'
                       ? 'bg-base-300 border-base-content/20'
                       : 'bg-base-200 border-base-content/20'
                   }`}>
-                    {['pending_tl_approval', 'pending_ceo_approval', 'approved', 'partially_disbursed', 'disbursed'].indexOf(request.state) >= 0 && '✓'}
+                    {(['pending_ceo_approval', 'pending_hr_disbursement', 'partially_disbursed', 'disbursed'].includes(request.state) || !!request.tl_approval_note) && '✓'}
                   </div>
                   <div>
-                    <h4 className="font-bold text-base-content">Submitted for Approval</h4>
-                    <p className="text-[10px] text-base-content/40 mt-0.5">Pending Team Lead routing</p>
+                    <h4 className="font-bold text-base-content">Team Lead Approval</h4>
+                    <p className="text-[10px] text-base-content/40 mt-0.5">TL reviews and sets priority/amounts</p>
                   </div>
                 </div>
 
-                {/* 3. CEO Escalation (Optional) */}
-                {request.amount_approved > request.department_details?.tl_approval_limit && (
-                  <div className="relative">
-                    <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
-                      ['pending_ceo_approval', 'approved', 'partially_disbursed', 'disbursed'].includes(request.state)
-                        ? 'bg-success border-success text-success-content'
-                        : 'bg-base-200 border-base-content/20'
-                    }`}>
-                      {['pending_ceo_approval', 'approved', 'partially_disbursed', 'disbursed'].indexOf(request.state) >= 0 && '✓'}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-base-content">Escalated to CEO</h4>
-                      <p className="text-[10px] text-base-content/40 mt-0.5">Amount above TL threshold</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Approved */}
+                {/* 3. CEO Approval */}
                 <div className="relative">
                   <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
-                    ['approved', 'partially_disbursed', 'disbursed'].includes(request.state)
+                    ['pending_hr_disbursement', 'partially_disbursed', 'disbursed'].includes(request.state) || !!request.ceo_approval_note
                       ? 'bg-success border-success text-success-content'
                       : 'bg-base-200 border-base-content/20'
                   }`}>
-                    {['approved', 'partially_disbursed', 'disbursed'].indexOf(request.state) >= 0 && '✓'}
+                    {(['pending_hr_disbursement', 'partially_disbursed', 'disbursed'].includes(request.state) || !!request.ceo_approval_note) && '✓'}
                   </div>
                   <div>
-                    <h4 className="font-bold text-base-content">Voucher Approved</h4>
-                    <p className="text-[10px] text-base-content/40 mt-0.5">Cleared for cash payouts</p>
+                    <h4 className="font-bold text-base-content">CEO Approval</h4>
+                    <p className="text-[10px] text-base-content/40 mt-0.5">CEO approval required for payout routing</p>
+                  </div>
+                </div>
+
+                {/* 4. Pending Disbursement */}
+                <div className="relative">
+                  <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
+                    ['pending_hr_disbursement', 'partially_disbursed', 'disbursed'].includes(request.state)
+                      ? 'bg-success border-success text-success-content'
+                      : 'bg-base-200 border-base-content/20'
+                  }`}>
+                    {['pending_hr_disbursement', 'partially_disbursed', 'disbursed'].includes(request.state) && '✓'}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-base-content">Pending Payout</h4>
+                    <p className="text-[10px] text-base-content/40 mt-0.5">Approved, waiting for HR disbursement</p>
                   </div>
                 </div>
 
@@ -631,12 +762,48 @@ export function PettyCashDetailPage() {
                     {request.state === 'partially_disbursed' && '◷'}
                   </div>
                   <div>
-                    <h4 className="font-bold text-base-content">Disbursed Payout</h4>
-                    <p className="text-[10px] text-base-content/40 mt-0.5">Voucher locked, paid out</p>
+                    <h4 className="font-bold text-base-content">Disbursed</h4>
+                    <p className="text-[10px] text-base-content/40 mt-0.5">Paid out and locked</p>
                   </div>
                 </div>
               </div>
             </div>
+
+            {/* Activity History Logs */}
+            {request.activity_log && request.activity_log.length > 0 && (
+              <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
+                <h3 className="text-base font-bold Outfit flex items-center gap-2">
+                  <History className="w-5 h-5 text-secondary" />
+                  Activity History
+                </h3>
+                <div className="space-y-4 text-xs">
+                  {request.activity_log.map((log) => (
+                    <div key={log.id} className="flex gap-3 text-xs border-b border-base-content/5 pb-3 last:border-0 last:pb-0">
+                      <div className="flex-1 space-y-1 text-left">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-base-content">
+                            {log.action} by {log.actor_name || log.actor_username || 'System'}
+                          </span>
+                          <span className="text-[10px] text-base-content/40">
+                            {new Date(log.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        {log.old_state && log.new_state && (
+                          <div className="text-[10px] text-base-content/60">
+                            Transition: <span className="font-semibold">{log.old_state}</span> → <span className="font-semibold text-secondary">{log.new_state}</span>
+                          </div>
+                        )}
+                        {log.reason && (
+                          <p className="text-xs italic text-base-content/70 mt-1 bg-base-300/20 p-2 rounded-lg border border-base-content/5">
+                            "{log.reason}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Payout History timeline */}
             {request.disbursements?.length > 0 && (
@@ -646,7 +813,7 @@ export function PettyCashDetailPage() {
                 <div className="space-y-4 text-xs">
                   {request.disbursements.map((d) => (
                     <div key={d.id} className="p-3 bg-base-300/30 rounded-xl border border-base-content/5 space-y-2">
-                      <div className="flex justify-between items-start">
+                      <div className="flex justify-between items-start text-left">
                         <div>
                           <span className="font-bold text-primary text-sm">৳{parseFloat(d.amount).toLocaleString()}</span>
                           <span className="block text-[10px] text-base-content/40 font-semibold uppercase mt-0.5">
@@ -659,13 +826,13 @@ export function PettyCashDetailPage() {
                       </div>
                       
                       {d.reference_number && (
-                        <p className="text-[10px] font-bold text-base-content/75 truncate">
+                        <p className="text-[10px] font-bold text-base-content/75 truncate text-left">
                           Ref: {d.reference_number}
                         </p>
                       )}
                       
                       {d.notes && (
-                        <p className="text-[10px] text-base-content/60 leading-normal italic mt-1 bg-base-100 p-2 rounded">
+                        <p className="text-[10px] text-base-content/60 leading-normal italic mt-1 bg-base-100 p-2 rounded text-left">
                           "{d.notes}"
                         </p>
                       )}
@@ -681,6 +848,99 @@ export function PettyCashDetailPage() {
           </div>
         </div>
 
+        {/* MODAL: Approve Requisition Modal */}
+        {showApproveModal && createPortal(
+          <div className="modal modal-open">
+            <div className="modal-box rounded-2xl glass-panel border border-base-content/10 p-6 max-w-md">
+              <h3 className="font-bold text-lg Outfit text-base-content flex items-center gap-2">
+                <CheckCircle2 className="w-6 h-6 text-success" />
+                Approve Requisition
+              </h3>
+              <p className="text-xs text-base-content/50 mt-1">
+                {isCEO 
+                  ? 'CEO direct approval requires setting the approved amount and note.' 
+                  : 'Adjust request details before routing. Note is mandatory.'}
+              </p>
+              
+              <form onSubmit={handleApproveSubmit} className="mt-4 space-y-4 text-xs text-left">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">Approved Amount (৳)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input input-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-sm focus:border-success"
+                    value={approveAmount}
+                    onChange={(e) => setApproveAmount(e.target.value)}
+                    required
+                  />
+                </div>
+
+                {!isCEO && (
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">Needed By Date</label>
+                      <input
+                        type="date"
+                        className="input input-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-xs focus:border-success"
+                        value={approveNeededBy}
+                        onChange={(e) => setApproveNeededBy(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">Priority</label>
+                      <select
+                        className="select select-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-xs focus:border-success"
+                        value={approvePriority}
+                        onChange={(e) => setApprovePriority(e.target.value)}
+                      >
+                        <option value="LOW">LOW</option>
+                        <option value="MEDIUM">MEDIUM</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="URGENT">URGENT</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">Approval Note</label>
+                  <textarea
+                    rows={3}
+                    className="textarea textarea-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-sm focus:border-success"
+                    placeholder="Provide details about modifications or approvals..."
+                    value={approveNote}
+                    onChange={(e) => setApproveNote(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="modal-action">
+                  <button 
+                    type="button" 
+                    onClick={() => { setShowApproveModal(false); setApproveNote(''); }} 
+                    className="btn btn-ghost rounded-xl text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={approveMutation.isPending}
+                    className="btn btn-success text-success-content rounded-xl font-bold text-xs"
+                  >
+                    {approveMutation.isPending ? (
+                      <span className="loading loading-spinner"></span>
+                    ) : (
+                      'Approve Voucher'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
         {/* MODAL: Rejection Reason */}
         {showRejectModal && createPortal(
           <div className="modal modal-open">
@@ -693,7 +953,7 @@ export function PettyCashDetailPage() {
                 Please provide a detailed justification for rejecting this voucher. This explanation will be visible to the requester.
               </p>
               
-              <form onSubmit={handleRejectSubmit} className="mt-4 space-y-4">
+              <form onSubmit={handleRejectSubmit} className="mt-4 space-y-4 text-left">
                 <div>
                   <textarea
                     rows={4}
@@ -743,7 +1003,7 @@ export function PettyCashDetailPage() {
                 Specify payout parameters to record the cash release. This locks the request balance.
               </p>
 
-              <form onSubmit={handleDisburseSubmit} className="mt-4 space-y-4 text-xs">
+              <form onSubmit={handleDisburseSubmit} className="mt-4 space-y-4 text-xs text-left">
                 <div>
                   <label className="label text-[10px] font-bold text-base-content/75 uppercase tracking-wider">Disbursement Amount (৳)</label>
                   <input
@@ -786,13 +1046,14 @@ export function PettyCashDetailPage() {
                 </div>
 
                 <div>
-                  <label className="label text-[10px] font-bold text-base-content/75 uppercase tracking-wider">Journal Notes</label>
+                  <label className="label text-[10px] font-bold text-base-content/75 uppercase tracking-wider">Disbursement Reason / Notes</label>
                   <textarea
                     rows={2}
                     className="textarea textarea-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-sm"
-                    placeholder="Optional details (e.g. paid in hand to employee)..."
+                    placeholder="Enter disbursement notes (mandatory)..."
                     value={disburseNotes}
                     onChange={(e) => setDisburseNotes(e.target.value)}
+                    required
                   />
                 </div>
 
@@ -825,5 +1086,4 @@ export function PettyCashDetailPage() {
     </PageTransition>
   );
 }
-
 export default PettyCashDetailPage;

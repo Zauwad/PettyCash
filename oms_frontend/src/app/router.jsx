@@ -57,7 +57,7 @@ export const router = createBrowserRouter([
       {
         path: 'approvals',
         element: (
-          <ProtectedRoute allowedRoles={[ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN]}>
+          <ProtectedRoute allowedRoles={[ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR]}>
             <ApprovalCenterPage />
           </ProtectedRoute>
         ),
@@ -73,7 +73,7 @@ export const router = createBrowserRouter([
       {
         path: 'delegation',
         element: (
-          <ProtectedRoute allowedRoles={[ROLES.TEAM_LEAD, ROLES.CEO]}>
+          <ProtectedRoute allowedRoles={[ROLES.TEAM_LEAD, ROLES.CEO, ROLES.GENERAL_MANAGER]}>
             <DelegationPage />
           </ProtectedRoute>
         ),

@@ -28,6 +28,9 @@ export const API_ENDPOINTS = {
   NOTIFICATIONS: '/api/notifications/',
   NOTIFICATIONS_MARK_READ: '/api/notifications/mark-read/',
   
+  // Audit Logs
+  AUDIT_LOGS: '/api/audit-logs/',
+  
   // Analytics
   ANALYTICS_TRENDS: '/api/analytics/spending-trends/',
   ANALYTICS_BURN_RATE: '/api/analytics/budget-burn-rate/',

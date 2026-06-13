@@ -40,6 +40,12 @@ def is_authorized_approver(user, request_obj, scope):
         is_active=True
     ).values_list('delegator_id', flat=True))
     
+    # Helper to check if user acts as a certain role (either directly or via delegation)
+    def acts_as_role(target_role):
+        if role == target_role:
+            return True
+        return UserProfile.objects.filter(user_id__in=delegator_ids, role=target_role).exists()
+        
     # The actual requester can never approve their own request, even if they are a TL or CEO
     requester = getattr(request_obj, 'requester', None)
     if requester == user:
@@ -47,12 +53,16 @@ def is_authorized_approver(user, request_obj, scope):
         
     state = request_obj.state
     
-    # Team Lead Level approval check
-    if state in ['pending_tl_approval', 'pending_tl']:
-        # CEOs can approve TL-level requests
-        if role == UserRole.CEO or UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.CEO).exists():
+    # CEO superpower: Can approve directly from draft, pending_tl_approval, or pending_gm_approval/pending_ceo_approval
+    if acts_as_role(UserRole.CEO):
+        if state in ['draft', 'pending_tl_approval', 'pending_gm_approval', 'pending_ceo_approval']:
             return True
-            
+
+    # State-based routing
+    if state == 'draft':
+        return False
+
+    elif state == 'pending_tl_approval':
         # Identify the department of the request
         req_dept = getattr(request_obj, 'department', None)
         if not req_dept and requester and hasattr(requester, 'profile'):
@@ -66,13 +76,16 @@ def is_authorized_approver(user, request_obj, scope):
             if UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.TEAM_LEAD, department=req_dept).exists():
                 return True
 
-    # CEO Level approval check
-    elif state in ['pending_ceo_approval', 'pending_ceo']:
-        # Direct CEO
-        if role == UserRole.CEO:
+    elif state == 'pending_gm_approval' and scope == 'LEAVE':
+        if acts_as_role(UserRole.GENERAL_MANAGER):
             return True
-        # Delegated CEO
-        if UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.CEO).exists():
+
+    elif state == 'pending_ceo_approval' and scope == 'PETTY_CASH':
+        if acts_as_role(UserRole.CEO):
+            return True
+
+    elif state in ['pending_hr_disbursement', 'partially_disbursed'] and scope == 'PETTY_CASH':
+        if acts_as_role(UserRole.HR):
             return True
             
     return False

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
@@ -19,7 +19,8 @@ import {
   Ban,
   Send,
   UserCheck,
-  AlignLeft
+  AlignLeft,
+  History
 } from 'lucide-react';
 
 export function LeaveDetailPage() {
@@ -33,6 +34,12 @@ export function LeaveDetailPage() {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [rejectionReason, setRejectionReason] = useState('');
 
+  // Approval modal states
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [approveStartDate, setApproveStartDate] = useState('');
+  const [approveEndDate, setApproveEndDate] = useState('');
+  const [approveNote, setApproveNote] = useState('');
+
   // Query: Leave Request details
   const { data: request, isLoading, isError } = useQuery({
     queryKey: ['leave-request-detail', uuid],
@@ -42,6 +49,14 @@ export function LeaveDetailPage() {
   const queryParams = {
     queryKey: ['leave-request-detail', uuid],
   };
+
+  // Pre-fill dates when request changes
+  useEffect(() => {
+    if (request) {
+      setApproveStartDate(request.start_date);
+      setApproveEndDate(request.end_date);
+    }
+  }, [request]);
 
   // Mutation: Submit
   const submitMutation = useMutation({
@@ -57,9 +72,11 @@ export function LeaveDetailPage() {
 
   // Mutation: Approve
   const approveMutation = useMutation({
-    mutationFn: () => leaveApi.approveRequest(uuid),
+    mutationFn: (data) => leaveApi.approveRequest(uuid, data),
     onSuccess: () => {
       toast.success('Leave request approved!');
+      setShowApproveModal(false);
+      setApproveNote('');
       queryClient.invalidateQueries(queryParams);
     },
     onError: (err) => {
@@ -138,13 +155,36 @@ export function LeaveDetailPage() {
   // Authorization flags
   const isOwner = request.requester_name === user.first_name + ' ' + (user.last_name || '') || request.requester_name === user.username;
   const isPendingTL = request.state === 'pending_tl_approval';
-  const isPendingCEO = request.state === 'pending_ceo_approval';
-  
+  const isPendingGM = request.state === 'pending_gm_approval';
+  const isCEO = role === 'CEO' || role === 'ADMIN';
+  const isGM = role === 'GENERAL_MANAGER';
+  const isTL = role === 'TEAM_LEAD';
+
   // Can the current user approve?
-  const deptName = user?.profile?.department?.name;
-  const isSameDept = user?.profile?.organization?.slug === request.leave_type_details?.organization?.slug; // Simple tenant membership check
-  const canApprove = (isPendingTL && role === 'TEAM_LEAD') || 
-                      (isPendingCEO && role === 'CEO');
+  const canApprove = (isPendingTL && isTL) || 
+                      (isPendingGM && isGM) ||
+                      (['draft', 'pending_tl_approval', 'pending_gm_approval'].includes(request.state) && isCEO);
+
+  // Can the current user reject?
+  const canReject = (isPendingTL && (isTL || isCEO)) || 
+                     (isPendingGM && (isGM || isCEO));
+
+  const handleApproveSubmit = (e) => {
+    e.preventDefault();
+    if (!approveNote.trim()) {
+      toast.error('Approval note is required.');
+      return;
+    }
+    const payload = {
+      note: approveNote,
+    };
+    // Only TL and GM adjust dates
+    if (!isCEO) {
+      payload.start_date = approveStartDate;
+      payload.end_date = approveEndDate;
+    }
+    approveMutation.mutate(payload);
+  };
 
   const handleRejectSubmit = (e) => {
     e.preventDefault();
@@ -214,7 +254,7 @@ export function LeaveDetailPage() {
             )}
 
             {/* Requester Cancel Approved/Pending */}
-            {isOwner && ['approved', 'pending_tl_approval', 'pending_ceo_approval'].includes(request.state) && (
+            {isOwner && ['approved', 'pending_tl_approval', 'pending_gm_approval'].includes(request.state) && (
               <button
                 onClick={() => cancelMutation.mutate()}
                 disabled={cancelMutation.isPending}
@@ -227,23 +267,22 @@ export function LeaveDetailPage() {
 
             {/* Approver Approve / Reject */}
             {canApprove && (
-              <>
-                <button
-                  onClick={() => approveMutation.mutate()}
-                  disabled={approveMutation.isPending}
-                  className="btn btn-success text-success-content btn-sm rounded-xl font-bold gap-1 text-xs"
-                >
-                  <CheckCircle2 className="w-4 h-4" />
-                  Approve Leave
-                </button>
-                <button
-                  onClick={() => setShowRejectModal(true)}
-                  className="btn btn-error text-error-content btn-sm rounded-xl font-bold gap-1 text-xs"
-                >
-                  <XCircle className="w-4 h-4" />
-                  Reject Leave
-                </button>
-              </>
+              <button
+                onClick={() => setShowApproveModal(true)}
+                className="btn btn-success text-success-content btn-sm rounded-xl font-bold gap-1 text-xs"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Approve Leave
+              </button>
+            )}
+            {canReject && (
+              <button
+                onClick={() => setShowRejectModal(true)}
+                className="btn btn-error text-error-content btn-sm rounded-xl font-bold gap-1 text-xs"
+              >
+                <XCircle className="w-4 h-4" />
+                Reject Leave
+              </button>
             )}
           </div>
         </div>
@@ -324,6 +363,42 @@ export function LeaveDetailPage() {
                 </p>
               </div>
             </div>
+
+            {/* Activity History Logs */}
+            {request.activity_log && request.activity_log.length > 0 && (
+              <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
+                <h3 className="text-base font-bold Outfit flex items-center gap-2">
+                  <History className="w-5 h-5 text-secondary" />
+                  Activity History
+                </h3>
+                <div className="space-y-4">
+                  {request.activity_log.map((log) => (
+                    <div key={log.id} className="flex gap-3 text-xs border-b border-base-content/5 pb-3 last:border-0 last:pb-0">
+                      <div className="flex-1 space-y-1 text-left">
+                        <div className="flex justify-between items-center">
+                          <span className="font-bold text-base-content">
+                            {log.action} by {log.actor_name || log.actor_username || 'System'}
+                          </span>
+                          <span className="text-[10px] text-base-content/40">
+                            {new Date(log.created_at).toLocaleString()}
+                          </span>
+                        </div>
+                        {log.old_state && log.new_state && (
+                          <div className="text-[10px] text-base-content/60">
+                            Transition: <span className="font-semibold">{log.old_state}</span> → <span className="font-semibold text-secondary">{log.new_state}</span>
+                          </div>
+                        )}
+                        {log.reason && (
+                          <p className="text-xs italic text-base-content/70 mt-1 bg-base-300/20 p-2 rounded-lg border border-base-content/5">
+                            "{log.reason}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Stepper Timeline */}
@@ -335,11 +410,11 @@ export function LeaveDetailPage() {
                 {/* 1. Draft */}
                 <div className="relative">
                   <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
-                    ['draft', 'pending_tl_approval', 'pending_ceo_approval', 'approved', 'rejected', 'cancelled'].includes(request.state)
+                    ['draft', 'pending_tl_approval', 'pending_gm_approval', 'approved', 'rejected', 'cancelled'].includes(request.state)
                       ? 'bg-success border-success text-success-content'
                       : 'bg-base-200 border-base-content/20'
                   }`}>
-                    {['draft', 'pending_tl_approval', 'pending_ceo_approval', 'approved', 'rejected', 'cancelled'].indexOf(request.state) >= 0 && '✓'}
+                    ✓
                   </div>
                   <div>
                     <h4 className="font-bold text-base-content">Request Initiated</h4>
@@ -350,21 +425,36 @@ export function LeaveDetailPage() {
                 {/* 2. Submitted */}
                 <div className="relative">
                   <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
-                    ['pending_tl_approval', 'pending_ceo_approval', 'approved'].includes(request.state)
+                    ['pending_gm_approval', 'approved'].includes(request.state) || !!request.tl_approval_note
                       ? 'bg-success border-success text-success-content'
                       : request.state === 'cancelled'
                       ? 'bg-base-300 border-base-content/20'
                       : 'bg-base-200 border-base-content/20'
                   }`}>
-                    {['pending_tl_approval', 'pending_ceo_approval', 'approved'].indexOf(request.state) >= 0 && '✓'}
+                    {(['pending_gm_approval', 'approved'].includes(request.state) || !!request.tl_approval_note) && '✓'}
                   </div>
                   <div>
-                    <h4 className="font-bold text-base-content">Submitted</h4>
-                    <p className="text-[10px] text-base-content/40 mt-0.5">Pending Team Lead review</p>
+                    <h4 className="font-bold text-base-content">Team Lead Approval</h4>
+                    <p className="text-[10px] text-base-content/40 mt-0.5">TL reviews and can adjust dates</p>
                   </div>
                 </div>
 
-                {/* 3. Approved */}
+                {/* 3. GM Approval */}
+                <div className="relative">
+                  <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
+                    ['approved'].includes(request.state) || !!request.gm_approval_note
+                      ? 'bg-success border-success text-success-content'
+                      : 'bg-base-200 border-base-content/20'
+                  }`}>
+                    {(['approved'].includes(request.state) || !!request.gm_approval_note) && '✓'}
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-base-content">GM Approval</h4>
+                    <p className="text-[10px] text-base-content/40 mt-0.5">GM reviews and can adjust dates</p>
+                  </div>
+                </div>
+
+                {/* 4. Approved */}
                 <div className="relative">
                   <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
                     request.state === 'approved'
@@ -375,13 +465,91 @@ export function LeaveDetailPage() {
                   </div>
                   <div>
                     <h4 className="font-bold text-base-content">Approved</h4>
-                    <p className="text-[10px] text-base-content/40 mt-0.5">Days deducted from balance</p>
+                    <p className="text-[10px] text-base-content/40 mt-0.5">Finalized and logged</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {/* MODAL: Approval Date Adjustments & Notes */}
+        {showApproveModal && createPortal(
+          <div className="modal modal-open">
+            <div className="modal-box rounded-2xl glass-panel border border-base-content/10 p-6 max-w-md">
+              <h3 className="font-bold text-lg Outfit text-base-content flex items-center gap-2">
+                <CheckCircle2 className="w-6 h-6 text-success" />
+                Approve Leave Request
+              </h3>
+              <p className="text-xs text-base-content/50 mt-1">
+                {isCEO 
+                  ? 'Confirming direct superpower approval as CEO/Admin.' 
+                  : 'You can adjust the leave dates below if required. An approval note is mandatory.'}
+              </p>
+              
+              <form onSubmit={handleApproveSubmit} className="mt-4 space-y-4 text-left">
+                {!isCEO && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">Start Date</label>
+                      <input
+                        type="date"
+                        className="input input-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-xs focus:border-success"
+                        value={approveStartDate}
+                        onChange={(e) => setApproveStartDate(e.target.value)}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">End Date</label>
+                      <input
+                        type="date"
+                        className="input input-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-xs focus:border-success"
+                        value={approveEndDate}
+                        onChange={(e) => setApproveEndDate(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-base-content/50">Approval Note</label>
+                  <textarea
+                    rows={3}
+                    className="textarea textarea-bordered w-full rounded-xl bg-base-100 border-base-content/10 text-sm focus:border-success"
+                    placeholder="Enter approval note..."
+                    value={approveNote}
+                    onChange={(e) => setApproveNote(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="modal-action">
+                  <button 
+                    type="button" 
+                    onClick={() => { setShowApproveModal(false); setApproveNote(''); }} 
+                    className="btn btn-ghost rounded-xl text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    type="submit" 
+                    disabled={approveMutation.isPending}
+                    className="btn btn-success text-success-content rounded-xl font-bold text-xs"
+                  >
+                    {approveMutation.isPending ? (
+                      <span className="loading loading-spinner"></span>
+                    ) : (
+                      'Approve Request'
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
 
         {/* MODAL: Rejection Reason */}
         {showRejectModal && createPortal(
@@ -395,7 +563,7 @@ export function LeaveDetailPage() {
                 Please enter a detailed reason for rejecting this leave application. This is visible to the employee.
               </p>
               
-              <form onSubmit={handleRejectSubmit} className="mt-4 space-y-4">
+              <form onSubmit={handleRejectSubmit} className="mt-4 space-y-4 text-left">
                 <div>
                   <textarea
                     rows={4}

@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pettyCashApi } from '../api/pettyCashApi';
@@ -13,10 +14,8 @@ import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
-import gsap from 'gsap';
 import { 
   Plus, 
-  Search, 
   SlidersHorizontal, 
   Trash2, 
   UploadCloud, 
@@ -25,10 +24,7 @@ import {
   X,
   ArrowLeft,
   ChevronRight,
-  TrendingDown,
-  Info,
-  Calendar,
-  DollarSign
+  TrendingDown
 } from 'lucide-react';
 
 // Form validation schema with Zod
@@ -75,6 +71,7 @@ export function PettyCashListPage() {
   
   // Filter drawer state for mobile
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [selectedReq, setSelectedReq] = useState(null);
 
   // Fetch Petty Cash requests
   const filterParams = { page };
@@ -99,7 +96,7 @@ export function PettyCashListPage() {
     handleSubmit,
     watch,
     reset,
-    setValue,
+    trigger,
     formState: { errors, isSubmitting },
   } = useForm({
     resolver: zodResolver(requisitionSchema),
@@ -138,7 +135,7 @@ export function PettyCashListPage() {
         try {
           await pettyCashApi.uploadAttachments(newReq.uuid, filesToUpload);
           toast.success('Attachments uploaded.');
-        } catch (e) {
+        } catch (_e) {
           toast.error('Failed to upload some attachments.');
         }
       }
@@ -147,7 +144,7 @@ export function PettyCashListPage() {
       try {
         await pettyCashApi.submit(newReq.uuid);
         toast.success('Requisition submitted for approval!');
-      } catch (submitErr) {
+      } catch (_submitErr) {
         toast.warning('Requisition created as draft. Please submit it manually.');
       }
 
@@ -344,14 +341,18 @@ export function PettyCashListPage() {
 
             {/* Workflow status tabs */}
             <div className="tabs tabs-box bg-base-200/50 p-1 rounded-xl max-w-fit border border-base-content/5 flex-wrap gap-1">
-              {['all', 'draft', 'pending_tl_approval', 'pending_ceo_approval', 'approved', 'partially_disbursed', 'disbursed', 'rejected', 'cancelled'].map((tab) => {
+              {['all', 'draft', 'pending_tl_approval', 'pending_ceo_approval', 'pending_hr_disbursement', 'partially_disbursed', 'disbursed', 'rejected', 'rejected_by_ceo', 'cancelled'].map((tab) => {
                 const label = tab === 'all' 
                   ? 'All' 
                   : tab === 'pending_tl_approval'
                   ? 'Lead Approval'
                   : tab === 'pending_ceo_approval'
                   ? 'CEO Approval'
-                  : tab.charAt(0).toUpperCase() + tab.slice(1).replace('_', ' ');
+                  : tab === 'pending_hr_disbursement'
+                  ? 'Pending Disbursement'
+                  : tab === 'rejected_by_ceo'
+                  ? 'CEO Rejected'
+                  : tab.charAt(0).toUpperCase() + tab.slice(1).replace(/_/g, ' ');
                 
                 return (
                   <button
@@ -385,7 +386,8 @@ export function PettyCashListPage() {
                 {requisitions.results.map((req) => (
                   <div 
                     key={req.id} 
-                    className="requisition-card glass-panel rounded-2xl p-6 shadow-md hover:shadow-xl transition-all duration-300 border border-base-content/5 flex flex-col justify-between h-56 group relative overflow-hidden"
+                    onClick={() => setSelectedReq(req)}
+                    className="requisition-card glass-panel rounded-2xl p-6 shadow-md hover:shadow-xl hover:-translate-y-0.5 cursor-pointer transition-all duration-300 border border-base-content/5 flex flex-col justify-between h-56 group relative overflow-hidden"
                   >
                     {/* Glowing card border gradient on hover */}
                     <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
@@ -405,7 +407,11 @@ export function PettyCashListPage() {
                       </div>
 
                       <div className="space-y-1">
-                        <Link to={`/petty-cash/${req.uuid}`} className="text-base font-extrabold text-base-content hover:text-primary transition-colors truncate block Outfit">
+                        <Link 
+                          to={`/petty-cash/${req.uuid}`} 
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-base font-extrabold text-base-content hover:text-primary transition-colors truncate block Outfit"
+                        >
                           {req.title}
                         </Link>
                         <p className="text-xs text-base-content/50 line-clamp-2 leading-relaxed">
@@ -424,6 +430,7 @@ export function PettyCashListPage() {
 
                       <Link 
                         to={`/petty-cash/${req.uuid}`}
+                        onClick={(e) => e.stopPropagation()}
                         className="btn btn-ghost btn-circle btn-sm text-base-content/55 hover:bg-base-content/5 hover:text-primary transition-all group-hover:translate-x-1"
                       >
                         <ChevronRight className="w-5 h-5" />
@@ -468,9 +475,10 @@ export function PettyCashListPage() {
 
         {/* CREATE REQUISITION VIEW */}
         {view === 'create' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Form Fields */}
-            <form onSubmit={handleSubmit(onSubmit)} className="lg:col-span-2 space-y-6">
+          <form onSubmit={handleSubmit(onSubmit)} className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left side: Requisition Details & Items */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Requisition Details Panel */}
               <div className="glass-panel p-6 md:p-8 rounded-2xl shadow-xl space-y-5">
                 <h3 className="text-lg font-bold Outfit border-b border-base-content/5 pb-3">Requisition Details</h3>
 
@@ -491,7 +499,7 @@ export function PettyCashListPage() {
                   <div>
                     <label className="label text-xs font-bold text-base-content/75 uppercase tracking-wider">Description</label>
                     <textarea
-                      rows={3}
+                      rows={4}
                       className={`textarea textarea-bordered w-full rounded-xl bg-base-100/40 focus:bg-base-100 border-base-content/10 text-sm ${
                         errors.description ? 'textarea-error' : ''
                       }`}
@@ -641,9 +649,9 @@ export function PettyCashListPage() {
                   )}
                 </button>
               </div>
-            </form>
+            </div>
 
-            {/* Right Side: Budget Indicator & Attachments */}
+            {/* Right Side Column: Budget Monitor & Receipts */}
             <div className="space-y-6">
               {/* Budget Monitor Widget */}
               <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
@@ -745,9 +753,97 @@ export function PettyCashListPage() {
                 )}
               </div>
             </div>
-          </div>
+          </form>
         )}
       </div>
+
+      {/* Requisition Details Slide-over Drawer */}
+      {selectedReq && createPortal(
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div 
+            onClick={() => setSelectedReq(null)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+          />
+          
+          {/* Panel */}
+          <div className="relative w-full max-w-md bg-base-200/98 backdrop-blur-md shadow-2xl h-full border-l border-base-content/5 flex flex-col z-10 animate-slide-in-right glass-panel p-6 overflow-y-auto space-y-6">
+            <div className="flex items-center justify-between border-b border-base-content/5 pb-4">
+              <div>
+                <span className="text-[10px] text-base-content/40 font-bold uppercase tracking-wider">Requisition Peek</span>
+                <h3 className="text-lg font-bold Outfit text-base-content mt-0.5">#{selectedReq.id} Details</h3>
+              </div>
+              <button 
+                onClick={() => setSelectedReq(null)}
+                className="btn btn-ghost btn-circle btn-sm hover:bg-base-content/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <StatusBadge state={selectedReq.state} />
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-base-content/50 uppercase tracking-wide">Title</h4>
+                <p className="text-base font-extrabold text-base-content Outfit mt-1">{selectedReq.title}</p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-base-content/50 uppercase tracking-wide">Description</h4>
+                <p className="text-xs text-base-content/75 mt-1 leading-relaxed whitespace-pre-wrap">{selectedReq.description}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-b border-base-content/5 py-4">
+                <div>
+                  <h4 className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Priority</h4>
+                  <span className={`inline-block text-[10px] font-black px-2.5 py-0.5 rounded-md mt-1 ${
+                    selectedReq.priority === 'URGENT' 
+                      ? 'bg-error/15 text-error' 
+                      : selectedReq.priority === 'HIGH'
+                      ? 'bg-warning/15 text-warning'
+                      : 'bg-base-300 text-base-content/60'
+                  }`}>
+                    {selectedReq.priority}
+                  </span>
+                </div>
+                <div>
+                  <h4 className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Needed By</h4>
+                  <p className="text-xs text-base-content font-semibold mt-1">
+                    {new Date(selectedReq.needed_by).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-base-content/50 uppercase tracking-wide">Amount Requested</h4>
+                <h3 className="text-2xl font-black Outfit text-primary mt-1">
+                  ৳{parseFloat(selectedReq.amount_requested).toLocaleString()}
+                </h3>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-base-content/5 flex gap-3">
+              <Link 
+                to={`/petty-cash/${selectedReq.uuid}`}
+                onClick={() => setSelectedReq(null)}
+                className="btn btn-primary rounded-xl font-bold flex-1 text-xs shadow-md shadow-primary/25"
+              >
+                View Full Details Page
+              </Link>
+              <button 
+                onClick={() => setSelectedReq(null)}
+                className="btn btn-outline border-base-content/10 hover:bg-base-content/5 rounded-xl text-xs"
+              >
+                Close Peek
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </PageTransition>
   );
 }
