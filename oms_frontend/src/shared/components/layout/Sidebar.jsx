@@ -1,10 +1,12 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ROLES } from '@/shared/constants/roles';
 import { useQuery } from '@tanstack/react-query';
 import { pettyCashApi } from '@/features/petty-cash/api/pettyCashApi';
 import { leaveApi } from '@/features/leave/api/leaveApi';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Badge } from '@/components/ui/badge';
 import { 
   LayoutDashboard, 
   Wallet, 
@@ -15,12 +17,25 @@ import {
   Users,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  ChevronDown,
+  CalendarClock,
+  CalendarRange,
+  Activity,
 } from 'lucide-react';
+
+// Roles that can access analytics & reports
+const ANALYTICS_ROLES = [ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.TEAM_LEAD, ROLES.HR];
 
 export function Sidebar({ isCollapsed, onToggle }) {
   const { user, logout } = useAuth();
   const role = user?.profile?.role || user?.role;
+  const location = useLocation();
+  const isHR = user?.profile?.department?.name?.toUpperCase().includes('HR');
+
+  // Whether the analytics sub-menu is expanded
+  const isAnalyticsActive = location.pathname.startsWith('/analytics');
+  const [analyticsOpen, setAnalyticsOpen] = useState(isAnalyticsActive);
 
   // Query: Get pending approvals count for TL/CEO/Admin/GM/HR
   const { data: pettyCashPending } = useQuery({
@@ -70,6 +85,9 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
   const pendingApprovalsCount = (pettyCashPending?.length || 0) + (leavePending?.length || 0);
 
+  // Check if the current user can see analytics
+  const canSeeAnalytics = ANALYTICS_ROLES.includes(role);
+
   // Custom navigation items with roles authorization
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -80,12 +98,6 @@ export function Sidebar({ isCollapsed, onToggle }) {
       label: 'Approvals', 
       icon: CheckSquare,
       allowed: [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR] 
-    },
-    { 
-      to: '/analytics', 
-      label: 'Analytics', 
-      icon: BarChart3,
-      allowed: [ROLES.CEO, ROLES.ADMIN] 
     },
     { 
       to: '/delegation', 
@@ -100,6 +112,13 @@ export function Sidebar({ isCollapsed, onToggle }) {
       allowed: [ROLES.CEO, ROLES.ADMIN],
       allowHR: true
     },
+  ];
+
+  const analyticsSubLinks = [
+    { to: '/analytics', label: 'Overview', icon: BarChart3, exact: true },
+    { to: '/analytics/weekly', label: 'Weekly', icon: CalendarClock },
+    { to: '/analytics/monthly', label: 'Monthly', icon: CalendarRange },
+    { to: '/analytics/quarterly', label: 'Quarterly', icon: Activity },
   ];
 
   return (
@@ -128,10 +147,8 @@ export function Sidebar({ isCollapsed, onToggle }) {
       </div>
 
       {/* Nav List */}
-      <nav className="flex-1 p-4 space-y-2.5 overflow-y-auto">
+      <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
-          // Check role and HR department restrictions
-          const isHR = user?.profile?.department?.name?.toUpperCase().includes('HR');
           const isAllowed = !item.allowed || item.allowed.includes(role) || (item.allowHR && isHR);
           if (!isAllowed) return null;
 
@@ -139,6 +156,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
             <NavLink
               key={item.to}
               to={item.to}
+              end={item.to === '/'}
               className={({ isActive }) =>
                 `relative flex items-center ${isCollapsed ? 'justify-center p-3 tooltip tooltip-right' : 'gap-3 px-4 py-3'} rounded-xl text-sm font-medium transition-all duration-200 group ${
                   isActive
@@ -162,9 +180,12 @@ export function Sidebar({ isCollapsed, onToggle }) {
                   
                   {/* Pending count badges */}
                   {!isCollapsed && item.label === 'Approvals' && pendingApprovalsCount > 0 && (
-                    <span className="badge badge-error badge-sm ml-auto font-bold animate-pulse">
+                    <Badge 
+                      variant="destructive" 
+                      className="ml-auto font-bold animate-pulse text-[10px] px-1.5 py-0 leading-none h-5 rounded-md border-0"
+                    >
                       {pendingApprovalsCount}
-                    </span>
+                    </Badge>
                   )}
                   {isCollapsed && item.label === 'Approvals' && pendingApprovalsCount > 0 && (
                     <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-error animate-ping"></span>
@@ -174,6 +195,94 @@ export function Sidebar({ isCollapsed, onToggle }) {
             </NavLink>
           );
         })}
+
+        {/* ─── Analytics Section (collapsible) ─────────────────── */}
+        {canSeeAnalytics && (
+          <div className="space-y-1">
+            {/* Analytics parent button */}
+            {isCollapsed ? (
+              // Collapsed: show icon-only link to /analytics overview
+              <NavLink
+                to="/analytics"
+                className={({ isActive }) =>
+                  `relative flex items-center justify-center p-3 tooltip tooltip-right rounded-xl text-sm font-medium transition-all duration-200 group ${
+                    isAnalyticsActive
+                      ? 'text-primary-content font-semibold shadow-md'
+                      : 'text-base-content/75 hover:bg-base-content/5 hover:text-base-content'
+                  }`
+                }
+                data-tip="Analytics"
+              >
+                {isAnalyticsActive && (
+                  <motion.span
+                    layoutId="sidebarActivePill"
+                    className="absolute inset-0 bg-primary rounded-xl -z-10 shadow-lg shadow-primary/20"
+                    transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                  />
+                )}
+                <BarChart3 className="w-5 h-5 transition-transform group-hover:scale-110 duration-200 shrink-0" />
+              </NavLink>
+            ) : (
+              <>
+                {/* Expandable toggle button */}
+                <button
+                  id="analytics-sidebar-toggle"
+                  onClick={() => setAnalyticsOpen((prev) => !prev)}
+                  className={`w-full relative flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 group ${
+                    isAnalyticsActive
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-base-content/75 hover:bg-base-content/5 hover:text-base-content'
+                  }`}
+                >
+                  <BarChart3 className="w-5 h-5 transition-transform group-hover:scale-110 duration-200 shrink-0" />
+                  <span>Analytics</span>
+                  <motion.span
+                    className="ml-auto"
+                    animate={{ rotate: analyticsOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <ChevronDown className="w-4 h-4 text-base-content/50" />
+                  </motion.span>
+                </button>
+
+                {/* Sub-link list */}
+                <AnimatePresence initial={false}>
+                  {analyticsOpen && (
+                    <motion.div
+                      key="analytics-submenu"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      className="overflow-hidden"
+                    >
+                      <div className="ml-4 pl-3 border-l border-base-content/10 space-y-1 py-1">
+                        {analyticsSubLinks.map((sub) => (
+                          <NavLink
+                            key={sub.to}
+                            to={sub.to}
+                            end={sub.exact}
+                            className={({ isActive }) =>
+                              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                                isActive
+                                  ? 'bg-primary text-primary-content shadow-sm'
+                                  : 'text-base-content/65 hover:bg-base-content/5 hover:text-base-content'
+                              }`
+                            }
+                          >
+                            <sub.icon className="w-3.5 h-3.5 shrink-0" />
+                            {sub.label}
+                          </NavLink>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </>
+            )}
+          </div>
+        )}
+        {/* ──────────────────────────────────────────────────────── */}
       </nav>
 
       {/* Bottom User profile card & Logout */}

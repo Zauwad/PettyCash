@@ -12,6 +12,7 @@ import { PageTransition } from '@/shared/components/ui/PageTransition';
 import { useGSAPStagger } from '@/shared/hooks/useGSAPStagger';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
+import { Select } from '@/shared/components/ui/Select';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { toast } from 'sonner';
@@ -126,6 +127,9 @@ export function LeaveListPage() {
   const watchedStartDate = watch('start_date');
   const watchedEndDate = watch('end_date');
   const watchedIsHalfDay = watch('is_half_day');
+  const watchedLeaveTypeId = watch('leave_type_id');
+  const watchedHalfDayPeriod = watch('half_day_period');
+  const watchedDelegateToId = watch('delegate_to_id');
 
   // Trigger working days calculation
   useEffect(() => {
@@ -491,19 +495,16 @@ export function LeaveListPage() {
                   {/* Leave Type */}
                   <div>
                     <label className="label text-xs font-bold text-base-content/75 uppercase tracking-wider">Leave Category</label>
-                    <select
-                      className={`select select-bordered w-full rounded-xl bg-base-100/40 border-base-content/10 text-sm focus:bg-base-100 ${
-                        errors.leave_type_id ? 'select-error' : ''
-                      }`}
-                      {...register('leave_type_id')}
-                    >
-                      <option value="">Select a category...</option>
-                      {leaveTypes?.results?.map(type => (
-                        <option key={type.id} value={type.id}>
-                          {type.name} {type.requires_attachment ? ' (Requires Attachment)' : ''}
-                        </option>
-                      ))}
-                    </select>
+                    <Select
+                      value={watchedLeaveTypeId}
+                      onChange={(val) => setValue('leave_type_id', val, { shouldValidate: true })}
+                      options={leaveTypes?.results?.map(type => ({
+                        value: String(type.id),
+                        label: `${type.name}${type.requires_attachment ? ' (Requires Attachment)' : ''}`
+                      })) || []}
+                      placeholder="Select a category..."
+                      className={errors.leave_type_id ? 'border-error rounded-xl [&>button]:border-error' : ''}
+                    />
                     {errors.leave_type_id && (
                       <span className="text-xs text-error font-medium mt-1 block">{errors.leave_type_id.message}</span>
                     )}
@@ -558,16 +559,16 @@ export function LeaveListPage() {
                     {watchedIsHalfDay && (
                       <div className="flex items-center gap-2 w-full sm:w-auto">
                         <label className="text-[10px] font-bold text-base-content/50 uppercase whitespace-nowrap">Select Period:</label>
-                        <select
-                          className={`select select-bordered select-sm rounded-lg bg-base-100 border-base-content/10 text-xs ${
-                            errors.half_day_period ? 'select-error' : ''
-                          }`}
-                          {...register('half_day_period')}
-                        >
-                          <option value="">Choose...</option>
-                          <option value="MORNING">Morning Session</option>
-                          <option value="AFTERNOON">Afternoon Session</option>
-                        </select>
+                        <Select
+                          value={watchedHalfDayPeriod}
+                          onChange={(val) => setValue('half_day_period', val, { shouldValidate: true })}
+                          options={[
+                            { value: 'MORNING', label: 'Morning Session' },
+                            { value: 'AFTERNOON', label: 'Afternoon Session' },
+                          ]}
+                          placeholder="Choose..."
+                          className={cn("w-48", errors.half_day_period ? 'border-error rounded-xl [&>button]:border-error' : '')}
+                        />
                       </div>
                     )}
                   </div>
@@ -578,17 +579,15 @@ export function LeaveListPage() {
                   {/* Delegation colleague */}
                   <div>
                     <label className="label text-xs font-bold text-base-content/75 uppercase tracking-wider">Colleague Handover backup (Optional)</label>
-                    <select
-                      className="select select-bordered w-full rounded-xl bg-base-100/40 border-base-content/10 text-sm focus:bg-base-100"
-                      {...register('delegate_to_id')}
-                    >
-                      <option value="">Select colleague...</option>
-                      {colleagues?.map(c => (
-                        <option key={c.id} value={c.id}>
-                          {c.first_name ? `${c.first_name} ${c.last_name || ''}` : c.username} ({c.email})
-                        </option>
-                      ))}
-                    </select>
+                    <Select
+                      value={watchedDelegateToId}
+                      onChange={(val) => setValue('delegate_to_id', val)}
+                      options={colleagues?.map(c => ({
+                        value: String(c.id),
+                        label: `${c.first_name ? `${c.first_name} ${c.last_name || ''}` : c.username} (${c.email})`
+                      })) || []}
+                      placeholder="Select colleague..."
+                    />
                     <span className="text-[10px] text-base-content/40 mt-1 block">
                       Select a colleague to temporarily delegate tasks to during your absence.
                     </span>

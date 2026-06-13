@@ -51,9 +51,6 @@ export function ApprovalCenterPage() {
 
   // Fetch Petty Cash requests in pending states
   const pettyCashParams = {};
-  if (isTL && user?.profile?.department) {
-    pettyCashParams.department = user.profile.department.id;
-  }
   
   const { data: pettyCashPending, isLoading: isPettyCashLoading } = useQuery({
     queryKey: ['pending-petty-cash', pettyCashParams],
@@ -405,6 +402,7 @@ export function ApprovalCenterPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Link 
                         to={activeTab === 'petty_cash' ? `/petty-cash/${item.uuid}` : `/leave/${item.uuid}`} 
+                        state={{ from: '/approvals' }}
                         className={`font-bold text-sm text-base-content transition-colors Outfit ${
                           activeTab === 'petty_cash' ? 'hover:text-primary' : 'hover:text-secondary'
                         }`}

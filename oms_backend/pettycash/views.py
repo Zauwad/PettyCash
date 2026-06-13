@@ -52,11 +52,8 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                 
             # Team Lead can see their own requests AND those of their department
             elif role == UserRole.TEAM_LEAD:
-                dept = user.profile.department
-                return queryset.filter(
-                    Q(requester=user) | 
-                    Q(department=dept)
-                )
+                # Single TL per company - sees all org requests, not just one department
+                return queryset
             
         # CEO / Admin / GENERAL_MANAGER / HR see all requests in the organization (handled by mixin)
         return queryset

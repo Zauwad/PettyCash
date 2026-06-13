@@ -36,4 +36,7 @@ export const API_ENDPOINTS = {
   ANALYTICS_BURN_RATE: '/api/analytics/budget-burn-rate/',
   ANALYTICS_ABSENCES: '/api/analytics/upcoming-absences/',
   ANALYTICS_SUMMARY: '/api/analytics/summary/',
+  ANALYTICS_WEEKLY_REPORT: '/api/analytics/reports/weekly/',
+  ANALYTICS_MONTHLY_REPORT: '/api/analytics/reports/monthly/',
+  ANALYTICS_QUARTERLY_REPORT: '/api/analytics/reports/quarterly/',
 };

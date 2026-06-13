@@ -29,23 +29,10 @@ class AuditLogViewSet(OrganizationViewSetMixin, viewsets.ReadOnlyModelViewSet):
         if role == UserRole.EMPLOYEE:
             return queryset.none()
             
-        # Team Leads can only see logs of requests originating from their department
+        # Team Leads can see all logs in the organization (already filtered by OrganizationViewSetMixin)
         if role == UserRole.TEAM_LEAD:
-            dept = user.profile.department
-            if not dept:
-                return queryset.none()
-                
-            from pettycash.models import PettyCashRequest
-            from leave.models import LeaveRequest
-            
-            # Subqueries/Filtering by related request department
-            pc_ids = list(PettyCashRequest.objects.filter(requester__profile__department=dept).values_list('id', flat=True))
-            leave_ids = list(LeaveRequest.objects.filter(requester__profile__department=dept).values_list('id', flat=True))
-            
-            queryset = queryset.filter(
-                models.Q(target_type='PettyCashRequest', target_id__in=pc_ids) |
-                models.Q(target_type='LeaveRequest', target_id__in=leave_ids)
-            )
+            # Single TL per company - sees all org audit logs
+            pass
             
         # CEOs and General Managers can see all logs in the organization (already filtered by OrganizationViewSetMixin)
         return queryset

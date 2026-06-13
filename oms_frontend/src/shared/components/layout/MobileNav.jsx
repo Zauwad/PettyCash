@@ -1,20 +1,35 @@
-import { NavLink } from 'react-router-dom';
+import { useState } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ROLES } from '@/shared/constants/roles';
-import { X, LogOut } from 'lucide-react';
+import { X, LogOut, BarChart3, ChevronDown, CalendarClock, CalendarRange, Activity } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+const ANALYTICS_ROLES = [ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.TEAM_LEAD, ROLES.HR];
 
 export function MobileNav({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const role = user?.profile?.role;
+  const location = useLocation();
+  const isHR = user?.profile?.department?.name?.toUpperCase().includes('HR');
+  const isAnalyticsActive = location.pathname.startsWith('/analytics');
+  const [analyticsOpen, setAnalyticsOpen] = useState(isAnalyticsActive);
+  const canSeeAnalytics = ANALYTICS_ROLES.includes(role);
 
   const navItems = [
     { to: '/', label: 'Dashboard' },
     { to: '/petty-cash', label: 'Petty Cash' },
     { to: '/leave', label: 'Leave Management' },
     { to: '/approvals', label: 'Approvals', allowed: [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR] },
-    { to: '/analytics', label: 'Analytics', allowed: [ROLES.CEO, ROLES.ADMIN] },
     { to: '/delegation', label: 'Delegation', allowed: [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.GENERAL_MANAGER] },
     { to: '/team', label: 'Team Management', allowed: [ROLES.CEO, ROLES.ADMIN], allowHR: true },
+  ];
+
+  const analyticsSubLinks = [
+    { to: '/analytics', label: 'Overview', exact: true },
+    { to: '/analytics/weekly', label: 'Weekly Report' },
+    { to: '/analytics/monthly', label: 'Monthly Report' },
+    { to: '/analytics/quarterly', label: 'Quarterly Report' },
   ];
 
   if (!isOpen) return null;
@@ -48,9 +63,8 @@ export function MobileNav({ isOpen, onClose }) {
         </div>
 
         {/* Links list */}
-        <nav className="flex-1 space-y-1.5 overflow-y-auto">
+        <nav className="flex-1 space-y-1 overflow-y-auto">
           {navItems.map((item) => {
-            const isHR = user?.profile?.department?.name?.toUpperCase().includes('HR');
             const isAllowed = !item.allowed || item.allowed.includes(role) || (item.allowHR && isHR);
             if (!isAllowed) return null;
 
@@ -58,6 +72,7 @@ export function MobileNav({ isOpen, onClose }) {
               <NavLink
                 key={item.to}
                 to={item.to}
+                end={item.to === '/'}
                 onClick={onClose}
                 className={({ isActive }) =>
                   `flex items-center px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
@@ -71,6 +86,64 @@ export function MobileNav({ isOpen, onClose }) {
               </NavLink>
             );
           })}
+
+          {/* ─── Analytics Accordion ─────────────────────── */}
+          {canSeeAnalytics && (
+            <div className="space-y-1">
+              <button
+                id="mobile-analytics-toggle"
+                onClick={() => setAnalyticsOpen((p) => !p)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-sm font-semibold transition-all duration-200 ${
+                  isAnalyticsActive
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-base-content/75 hover:bg-base-content/5 hover:text-base-content'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4 shrink-0" />
+                <span>Analytics</span>
+                <motion.span
+                  className="ml-auto"
+                  animate={{ rotate: analyticsOpen ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <ChevronDown className="w-4 h-4 text-base-content/50" />
+                </motion.span>
+              </button>
+
+              <AnimatePresence initial={false}>
+                {analyticsOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.2, ease: 'easeInOut' }}
+                    className="overflow-hidden"
+                  >
+                    <div className="ml-4 pl-3 border-l border-base-content/10 space-y-1 py-1">
+                      {analyticsSubLinks.map((sub) => (
+                        <NavLink
+                          key={sub.to}
+                          to={sub.to}
+                          end={sub.exact}
+                          onClick={onClose}
+                          className={({ isActive }) =>
+                            `flex items-center px-3 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                              isActive
+                                ? 'bg-primary text-primary-content shadow-sm'
+                                : 'text-base-content/65 hover:bg-base-content/5 hover:text-base-content'
+                            }`
+                          }
+                        >
+                          {sub.label}
+                        </NavLink>
+                      ))}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+          {/* ─────────────────────────────────────────────── */}
         </nav>
 
         {/* Profile Card & Logout */}

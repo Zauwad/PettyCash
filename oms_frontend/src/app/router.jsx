@@ -13,9 +13,15 @@ import LeaveDetailPage from '@/features/leave/pages/LeaveDetailPage';
 import LeaveCalendarPage from '@/features/leave/pages/LeaveCalendarPage';
 import ApprovalCenterPage from '@/features/approvals/pages/ApprovalCenterPage';
 import AnalyticsDashboardPage from '@/features/analytics/pages/AnalyticsDashboardPage';
+import WeeklyReportPage from '@/features/analytics/pages/WeeklyReportPage';
+import MonthlyReportPage from '@/features/analytics/pages/MonthlyReportPage';
+import QuarterlyReportPage from '@/features/analytics/pages/QuarterlyReportPage';
 import DelegationPage from '@/features/delegation/pages/DelegationPage';
 import TeamPage from '@/features/team/pages/TeamPage';
 import SettingsPage from '@/features/settings/pages/SettingsPage';
+
+// Roles that have access to analytics & reports
+const ANALYTICS_ROLES = [ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.TEAM_LEAD, ROLES.HR];
 
 export const router = createBrowserRouter([
   {
@@ -62,14 +68,40 @@ export const router = createBrowserRouter([
           </ProtectedRoute>
         ),
       },
+      // ─── Analytics & Reports ──────────────────────────────────────────────
       {
         path: 'analytics',
         element: (
-          <ProtectedRoute allowedRoles={[ROLES.CEO, ROLES.ADMIN]}>
+          <ProtectedRoute allowedRoles={ANALYTICS_ROLES}>
             <AnalyticsDashboardPage />
           </ProtectedRoute>
         ),
       },
+      {
+        path: 'analytics/weekly',
+        element: (
+          <ProtectedRoute allowedRoles={ANALYTICS_ROLES}>
+            <WeeklyReportPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'analytics/monthly',
+        element: (
+          <ProtectedRoute allowedRoles={ANALYTICS_ROLES}>
+            <MonthlyReportPage />
+          </ProtectedRoute>
+        ),
+      },
+      {
+        path: 'analytics/quarterly',
+        element: (
+          <ProtectedRoute allowedRoles={ANALYTICS_ROLES}>
+            <QuarterlyReportPage />
+          </ProtectedRoute>
+        ),
+      },
+      // ─────────────────────────────────────────────────────────────────────
       {
         path: 'delegation',
         element: (
