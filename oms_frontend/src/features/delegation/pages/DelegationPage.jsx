@@ -41,7 +41,7 @@ export function DelegationPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const role = user?.profile?.role || user?.role;
-  const isAuthorizedToDelegate = ['TEAM_LEAD', 'CEO'].includes(role);
+  const isAuthorizedToDelegate = ['TEAM_LEAD', 'CEO', 'GENERAL_MANAGER'].includes(role);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
 
@@ -56,10 +56,10 @@ export function DelegationPage() {
     queryKey: ['delegation-colleagues'],
     queryFn: async () => {
       const res = await axiosInstance.get('/api/users/');
-      // Filter out self and only show roles capable of approving (TLs / CEOs / Admins)
+      // Filter out self and only show roles capable of approving (TLs / GMs / CEOs / Admins)
       return res.data?.results?.filter(u => 
         u.email !== user.email && 
-        ['TEAM_LEAD', 'CEO', 'ADMIN'].includes(u.profile?.role || u.role)
+        ['TEAM_LEAD', 'CEO', 'ADMIN', 'GENERAL_MANAGER'].includes(u.profile?.role || u.role)
       ) || [];
     },
     enabled: isAuthorizedToDelegate
@@ -154,7 +154,7 @@ export function DelegationPage() {
             <div>
               <h4 className="font-bold text-sm">Access Restricted</h4>
               <p className="text-xs text-warning-content/85 mt-1">
-                Only Team Leads, CEOs, and Administrators can configure Out-of-Office approval delegation records.
+                Only Team Leads, General Managers, CEOs, and Administrators can configure Out-of-Office approval delegation records.
               </p>
             </div>
           </div>

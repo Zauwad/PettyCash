@@ -90,15 +90,33 @@ class PettyCashRequestSerializer(serializers.ModelSerializer):
         write_only=True
     )
 
+    activity_log = serializers.SerializerMethodField()
+
     class Meta:
         model = PettyCashRequest
         fields = [
             'id', 'uuid', 'title', 'description', 'amount_requested', 'amount_approved', 
             'amount_disbursed', 'state', 'priority', 'needed_by', 'rejection_reason', 
+            'tl_approval_note', 'ceo_approval_note', 'hr_disbursement_note',
+            'tl_approved_amount', 'tl_approved_needed_by',
+            'ceo_approved_amount', 'ceo_approved_needed_by',
             'created_at', 'updated_at', 'requester_name', 'requester_email', 
-            'department_details', 'department_id', 'line_items', 'attachments', 'disbursements'
+            'department_details', 'department_id', 'line_items', 'attachments', 'disbursements',
+            'activity_log'
         ]
-        read_only_fields = ['uuid', 'amount_approved', 'amount_disbursed', 'state', 'rejection_reason', 'created_at', 'updated_at']
+        read_only_fields = [
+            'uuid', 'amount_approved', 'amount_disbursed', 'state', 'rejection_reason', 
+            'tl_approval_note', 'ceo_approval_note', 'hr_disbursement_note',
+            'tl_approved_amount', 'tl_approved_needed_by',
+            'ceo_approved_amount', 'ceo_approved_needed_by',
+            'created_at', 'updated_at', 'activity_log'
+        ]
+
+    def get_activity_log(self, obj):
+        from core.models import AuditLog
+        from core.serializers import AuditLogSerializer
+        logs = AuditLog.objects.filter(target_type='PettyCashRequest', target_id=obj.id).order_by('created_at')
+        return AuditLogSerializer(logs, many=True).data
 
     def create(self, validated_data):
         line_items_data = validated_data.pop('line_items', [])
@@ -113,9 +131,16 @@ class PettyCashRequestSerializer(serializers.ModelSerializer):
         return request
 
     def update(self, instance, validated_data):
-        # Nested line items can only be updated if in 'draft' state
-        if instance.state != 'draft':
-            raise serializers.ValidationError("Only requests in draft state can be modified.")
+        from accounts.models import UserRole
+        request = self.context.get('request')
+        user = request.user if request else None
+        role = user.profile.role if (user and hasattr(user, 'profile')) else None
+        
+        is_override_user = role in [UserRole.ADMIN, UserRole.CEO, UserRole.HR]
+        
+        # Nested line items can only be updated if in 'draft' or 'rejected_by_ceo' state (unless CEO/HR override)
+        if not is_override_user and instance.state not in ['draft', 'rejected_by_ceo']:
+            raise serializers.ValidationError("Only requests in draft or rejected by CEO state can be modified.")
             
         line_items_data = validated_data.pop('line_items', None)
         

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { leaveApi } from '../api/leaveApi';
@@ -18,16 +19,13 @@ import {
   Plus, 
   ArrowLeft, 
   Calendar, 
-  User, 
-  Briefcase, 
   AlertCircle, 
-  CheckCircle2, 
   ChevronRight,
   Info,
   Clock,
-  ArrowRight,
   Share2,
-  CalendarDays
+  CalendarDays,
+  X
 } from 'lucide-react';
 
 const leaveRequestSchema = z.object({
@@ -69,6 +67,7 @@ export function LeaveListPage() {
   const [view, setView] = useState(searchParams.get('create') === 'true' && !isCEO ? 'create' : 'list');
   const [workingDays, setWorkingDays] = useState(0);
   const [isCalculatingDays, setIsCalculatingDays] = useState(false);
+  const [selectedLeave, setSelectedLeave] = useState(null);
 
   // Filter parameters
   const filterParams = { page };
@@ -150,7 +149,7 @@ export function LeaveListPage() {
       try {
         const res = await leaveApi.calculateDays(watchedStartDate, watchedEndDate);
         setWorkingDays(res.working_days);
-      } catch (err) {
+      } catch (_err) {
         setWorkingDays(0);
       } finally {
         setIsCalculatingDays(false);
@@ -175,7 +174,7 @@ export function LeaveListPage() {
         // Submit request for approval automatically
         await leaveApi.submitRequest(newReq.uuid);
         toast.success('Leave request submitted successfully!');
-      } catch (submitErr) {
+      } catch (_submitErr) {
         toast.warning('Leave request created as draft. Please submit it manually.');
       }
       
@@ -314,13 +313,13 @@ export function LeaveListPage() {
 
               {/* Status tabs */}
               <div className="tabs tabs-box bg-base-200/50 p-1 rounded-xl max-w-fit border border-base-content/5 flex-wrap gap-1">
-                {['all', 'draft', 'pending_tl_approval', 'pending_ceo_approval', 'approved', 'rejected', 'cancelled'].map((tab) => {
+                {['all', 'draft', 'pending_tl_approval', 'pending_gm_approval', 'approved', 'rejected', 'cancelled'].map((tab) => {
                   const label = tab === 'all' 
                     ? 'All' 
                     : tab === 'pending_tl_approval'
                     ? 'Lead Approval'
-                    : tab === 'pending_ceo_approval'
-                    ? 'CEO Approval'
+                    : tab === 'pending_gm_approval'
+                    ? 'GM Approval'
                     : tab.charAt(0).toUpperCase() + tab.slice(1).replace('_', ' ');
                   
                   return (
@@ -355,7 +354,8 @@ export function LeaveListPage() {
                   {requests.results.map((req) => (
                     <div 
                       key={req.id} 
-                      className="leave-card glass-panel rounded-2xl p-5 shadow-sm hover:shadow-md transition-all border border-base-content/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group"
+                      onClick={() => setSelectedLeave(req)}
+                      className="leave-card glass-panel rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 cursor-pointer transition-all border border-base-content/5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 group"
                     >
                       <div className="flex gap-4 items-start">
                         <div className="bg-secondary/10 p-3 rounded-xl text-secondary shrink-0">
@@ -393,6 +393,7 @@ export function LeaveListPage() {
                         
                         <Link 
                           to={`/leave/${req.uuid}`}
+                          onClick={(e) => e.stopPropagation()}
                           className="btn btn-ghost btn-circle btn-sm text-base-content/45 hover:bg-base-content/5 hover:text-secondary group-hover:translate-x-1 transition-transform"
                         >
                           <ChevronRight className="w-5 h-5" />
@@ -449,7 +450,6 @@ export function LeaveListPage() {
                     {balances.map((bal) => {
                       const avail = parseFloat(bal.available);
                       const alloc = parseFloat(bal.total_allocated);
-                      const pct = Math.max(0, Math.min(100, Math.round((avail / alloc) * 100)));
                       
                       return (
                         <div key={bal.id} className="space-y-2">
@@ -669,6 +669,97 @@ export function LeaveListPage() {
           </div>
         )}
       </div>
+
+      {/* Leave Details Slide-over Drawer */}
+      {selectedLeave && createPortal(
+        <div className="fixed inset-0 z-50 flex justify-end">
+          {/* Backdrop */}
+          <div 
+            onClick={() => setSelectedLeave(null)}
+            className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity duration-300 animate-fade-in"
+          />
+          
+          {/* Panel */}
+          <div className="relative w-full max-w-md bg-base-200/98 backdrop-blur-md shadow-2xl h-full border-l border-base-content/5 flex flex-col z-10 animate-slide-in-right glass-panel p-6 overflow-y-auto space-y-6">
+            <div className="flex items-center justify-between border-b border-base-content/5 pb-4">
+              <div>
+                <span className="text-[10px] text-base-content/40 font-bold uppercase tracking-wider">Leave Application Peek</span>
+                <h3 className="text-lg font-bold Outfit text-base-content mt-0.5">#{selectedLeave.id} Details</h3>
+              </div>
+              <button 
+                onClick={() => setSelectedLeave(null)}
+                className="btn btn-ghost btn-circle btn-sm hover:bg-base-content/10"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <StatusBadge state={selectedLeave.state} />
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-base-content/50 uppercase tracking-wide">Leave Type</h4>
+                <p className="text-base font-extrabold text-base-content Outfit mt-1">{selectedLeave.leave_type_details?.name}</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 border-t border-b border-base-content/5 py-4">
+                <div>
+                  <h4 className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Duration</h4>
+                  <p className="text-xs text-base-content font-extrabold mt-1">
+                    {selectedLeave.working_days_requested} working {selectedLeave.working_days_requested === '1.0' || selectedLeave.working_days_requested === 0.5 ? 'day' : 'days'}
+                  </p>
+                </div>
+                <div>
+                  <h4 className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Type</h4>
+                  <p className="text-xs text-base-content font-semibold mt-1">
+                    {selectedLeave.is_half_day ? `Half Day (${selectedLeave.half_day_period})` : 'Full Day'}
+                  </p>
+                </div>
+              </div>
+
+              <div>
+                <h4 className="text-[10px] font-bold text-base-content/40 uppercase tracking-wider">Leave Period</h4>
+                <p className="text-xs text-base-content font-bold mt-1">
+                  {new Date(selectedLeave.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {' → '}
+                  {new Date(selectedLeave.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                </p>
+              </div>
+
+              <div>
+                <h4 className="text-xs font-bold text-base-content/50 uppercase tracking-wide">Reason</h4>
+                <p className="text-xs text-base-content/75 mt-1 leading-relaxed whitespace-pre-wrap">{selectedLeave.reason}</p>
+              </div>
+
+              {selectedLeave.delegate_name && (
+                <div>
+                  <h4 className="text-xs font-bold text-base-content/50 uppercase tracking-wide">Handover Backup Colleague</h4>
+                  <p className="text-xs text-base-content/85 font-semibold mt-1">{selectedLeave.delegate_name}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="pt-6 border-t border-base-content/5 flex gap-3">
+              <Link 
+                to={`/leave/${selectedLeave.uuid}`}
+                onClick={() => setSelectedLeave(null)}
+                className="btn btn-secondary rounded-xl font-bold flex-1 text-xs shadow-md shadow-secondary/25"
+              >
+                View Full Details Page
+              </Link>
+              <button 
+                onClick={() => setSelectedLeave(null)}
+                className="btn btn-outline border-base-content/10 hover:bg-base-content/5 rounded-xl text-xs"
+              >
+                Close Peek
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </PageTransition>
   );
 }

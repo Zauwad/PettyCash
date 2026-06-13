@@ -34,6 +34,8 @@ export function ApprovalCenterPage() {
   const isCEO = role === 'CEO';
   const isTL = role === 'TEAM_LEAD';
   const isAdmin = role === 'ADMIN';
+  const isGM = role === 'GENERAL_MANAGER';
+  const isHR = role === 'HR';
 
   // Toggle active approvals tab: 'petty_cash' or 'leave'
   const [activeTab, setActiveTab] = useState('petty_cash');
@@ -56,12 +58,22 @@ export function ApprovalCenterPage() {
   const { data: pettyCashPending, isLoading: isPettyCashLoading } = useQuery({
     queryKey: ['pending-petty-cash', pettyCashParams],
     queryFn: async () => {
-      // Fetch both pending_tl and pending_ceo to cover delegations
       const res = await pettyCashApi.list(pettyCashParams);
-      return res.results?.filter(r => 
-        (r.state === 'pending_tl_approval' && (isTL || isCEO || isAdmin)) ||
-        (r.state === 'pending_ceo_approval' && (isCEO || isAdmin))
-      ) || [];
+      return res.results?.filter(r => {
+        const isOwner = r.requester_email === user?.email;
+        if (isOwner) return false;
+
+        if (isTL) {
+          return r.state === 'pending_tl_approval';
+        }
+        if (isCEO || isAdmin) {
+          return r.state === 'pending_ceo_approval';
+        }
+        if (isHR) {
+          return r.state === 'pending_hr_disbursement' || r.state === 'partially_disbursed';
+        }
+        return false;
+      }) || [];
     },
   });
 
@@ -71,10 +83,18 @@ export function ApprovalCenterPage() {
     queryKey: ['pending-leaves', leaveParams],
     queryFn: async () => {
       const res = await leaveApi.listRequests(leaveParams);
-      return res.results?.filter(r => 
-        (r.state === 'pending_tl_approval' && (isTL || isCEO || isAdmin)) ||
-        (r.state === 'pending_ceo_approval' && (isCEO || isAdmin))
-      ) || [];
+      return res.results?.filter(r => {
+        const isOwner = r.requester_name === user?.first_name + ' ' + (user?.last_name || '') || r.requester_name === user?.username;
+        if (isOwner) return false;
+
+        if (isTL) {
+          return r.state === 'pending_tl_approval';
+        }
+        if (isGM) {
+          return r.state === 'pending_gm_approval';
+        }
+        return false;
+      }) || [];
     },
   });
 

@@ -11,9 +11,9 @@ export function MobileNav({ isOpen, onClose }) {
     { to: '/', label: 'Dashboard' },
     { to: '/petty-cash', label: 'Petty Cash' },
     { to: '/leave', label: 'Leave Management' },
-    { to: '/approvals', label: 'Approvals', allowed: [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN] },
+    { to: '/approvals', label: 'Approvals', allowed: [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR] },
     { to: '/analytics', label: 'Analytics', allowed: [ROLES.CEO, ROLES.ADMIN] },
-    { to: '/delegation', label: 'Delegation', allowed: [ROLES.TEAM_LEAD, ROLES.CEO] },
+    { to: '/delegation', label: 'Delegation', allowed: [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.GENERAL_MANAGER] },
     { to: '/team', label: 'Team Management', allowed: [ROLES.CEO, ROLES.ADMIN], allowHR: true },
   ];
 

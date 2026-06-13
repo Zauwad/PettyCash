@@ -11,7 +11,7 @@ from decimal import Decimal
 
 from core.mixins import OrganizationViewSetMixin
 from core.permissions import IsOrganizationMember
-from accounts.models import UserRole
+from accounts.models import UserRole, UserProfile
 from leave.models import LeaveType, LeaveBalance, LeaveRequest, CompanyHoliday
 from leave.serializers import (
     LeaveTypeSerializer,
@@ -102,17 +102,18 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
             
         role = user.profile.role
         
-        # Employee can only see their own requests
-        if role == UserRole.EMPLOYEE:
-            return queryset.filter(requester=user)
-            
-        # Team Lead can see their own requests AND those of their department
-        elif role == UserRole.TEAM_LEAD:
-            dept = user.profile.department
-            return queryset.filter(
-                models.Q(requester=user) | 
-                models.Q(requester__profile__department=dept)
-            )
+        if self.action == 'list':
+            # Employee can only see their own requests
+            if role == UserRole.EMPLOYEE:
+                return queryset.filter(requester=user)
+                
+            # Team Lead can see their own requests AND those of their department
+            elif role == UserRole.TEAM_LEAD:
+                dept = user.profile.department
+                return queryset.filter(
+                    models.Q(requester=user) | 
+                    models.Q(requester__profile__department=dept)
+                )
             
         # CEO / Admin see all requests in the organization (handled by mixin)
         return queryset
@@ -159,7 +160,7 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'])
     def approve(self, request, uuid=None):
-        """Approves leave request, shifting reserved pending days to used."""
+        """Approves leave request, supporting TL/GM date adjustments and CEO direct superpower approval."""
         obj = self.get_object()
         user = request.user
         role = user.profile.role
@@ -168,26 +169,107 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
         if not is_authorized_approver(user, obj, 'LEAVE'):
             return Response({"detail": "You do not have approval clearance for this request in its current state."}, status=status.HTTP_403_FORBIDDEN)
             
+        note = request.data.get('note') or request.data.get('reason')
+        if not note:
+            return Response({"note": ["An approval note/reason is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        start_date_str = request.data.get('start_date')
+        end_date_str = request.data.get('end_date')
+        
+        if start_date_str:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date() if isinstance(start_date_str, str) else start_date_str
+        else:
+            start_date = obj.start_date
+            
+        if end_date_str:
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date() if isinstance(end_date_str, str) else end_date_str
+        else:
+            end_date = obj.end_date
+            
+        from datetime import date
+        from core.models import ApprovalDelegation
+        today = date.today()
+        delegator_ids = list(ApprovalDelegation.objects.filter(
+            delegate=user,
+            scope__in=['LEAVE', 'ALL'],
+            start_date__lte=today,
+            end_date__gte=today,
+            is_active=True
+        ).values_list('delegator_id', flat=True))
+        
+        is_ceo = (role == UserRole.CEO) or (role == UserRole.ADMIN) or UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.CEO).exists()
+        is_gm = (role == UserRole.GENERAL_MANAGER) or UserProfile.objects.filter(user_id__in=delegator_ids, role=UserRole.GENERAL_MANAGER).exists()
+        
+        from leave.utils import calculate_working_days, check_overlap, check_negative_balance
+        
         try:
             with transaction.atomic():
-                if obj.state == 'pending_tl_approval':
-                    obj.tl_approve()
-                elif obj.state == 'pending_ceo_approval':
-                    obj.ceo_approve()
-                else:
-                    raise ValidationError("Request is not in a state that can be approved.")
-                    
-                # Deduct pending and add to used balance
+                old_working_days = Decimal(str(obj.working_days_requested))
+                old_year = obj.start_date.year
+                
+                # Retrieve requester's balance
                 balance = LeaveBalance.objects.select_for_update().get(
                     user=obj.requester,
                     leave_type=obj.leave_type,
-                    year=obj.start_date.year
+                    year=old_year
                 )
-                balance.pending = Decimal(str(balance.pending)) - Decimal(str(obj.working_days_requested))
-                balance.used = Decimal(str(balance.used)) + Decimal(str(obj.working_days_requested))
-                balance.save()
                 
-                obj.save()
+                if is_ceo and obj.state in ['draft', 'pending_tl_approval', 'pending_gm_approval']:
+                    old_state = obj.state
+                    obj.ceo_direct_approve(note)
+                    obj.save()
+                    
+                    # Update balances
+                    if old_state == 'draft':
+                        # Reserve nothing, directly use
+                        balance.used = Decimal(str(balance.used)) + Decimal(str(obj.working_days_requested))
+                    else:
+                        # Deduct from pending, add to used
+                        balance.pending = Decimal(str(balance.pending)) - old_working_days
+                        balance.used = Decimal(str(balance.used)) + Decimal(str(obj.working_days_requested))
+                    balance.save()
+                    
+                elif obj.state == 'pending_tl_approval':
+                    new_working_days = calculate_working_days(obj.organization, start_date, end_date)
+                    check_overlap(obj.requester, start_date, end_date, obj.id)
+                    
+                    # Temporarily adjust pending for verification check
+                    balance.pending = Decimal(str(balance.pending)) - old_working_days
+                    balance.save()
+                    try:
+                        check_negative_balance(obj.requester, obj.leave_type, new_working_days, start_date.year)
+                    except Exception as e:
+                        balance.pending = Decimal(str(balance.pending)) + old_working_days
+                        balance.save()
+                        raise e
+                    
+                    obj.tl_approve(start_date, end_date, note)
+                    obj.save()
+                    
+                    balance.pending = Decimal(str(balance.pending)) + Decimal(str(obj.working_days_requested))
+                    balance.save()
+                    
+                elif obj.state == 'pending_gm_approval' and (is_gm or is_ceo):
+                    new_working_days = calculate_working_days(obj.organization, start_date, end_date)
+                    check_overlap(obj.requester, start_date, end_date, obj.id)
+                    
+                    balance.pending = Decimal(str(balance.pending)) - old_working_days
+                    balance.save()
+                    try:
+                        check_negative_balance(obj.requester, obj.leave_type, new_working_days, start_date.year)
+                    except Exception as e:
+                        balance.pending = Decimal(str(balance.pending)) + old_working_days
+                        balance.save()
+                        raise e
+                    
+                    obj.gm_approve(start_date, end_date, note)
+                    obj.save()
+                    
+                    balance.used = Decimal(str(balance.used)) + Decimal(str(obj.working_days_requested))
+                    balance.save()
+                else:
+                    raise ValidationError("Request is not in a state that can be approved by your role.")
+                    
             return Response(self.get_serializer(obj).data)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
@@ -197,13 +279,12 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
         """Rejects request and releases reserved pending balance days."""
         obj = self.get_object()
         user = request.user
-        role = user.profile.role
         
         from core.utils import is_authorized_approver
         if not is_authorized_approver(user, obj, 'LEAVE'):
             return Response({"detail": "You do not have authorization to reject this request in its current state."}, status=status.HTTP_403_FORBIDDEN)
             
-        reason = request.data.get('reason')
+        reason = request.data.get('reason') or request.data.get('note')
         if not reason:
             return Response({"reason": ["A reason is required on rejection."]}, status=status.HTTP_400_BAD_REQUEST)
             
@@ -262,7 +343,7 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                 # Revert balances depending on where in the workflow request was cancelled
                 if old_state == 'approved':
                     balance.used = Decimal(str(balance.used)) - Decimal(str(obj.working_days_requested))
-                elif old_state in ['pending_tl_approval', 'pending_ceo_approval']:
+                elif old_state in ['pending_tl_approval', 'pending_gm_approval']:
                     balance.pending = Decimal(str(balance.pending)) - Decimal(str(obj.working_days_requested))
                     
                 balance.save()

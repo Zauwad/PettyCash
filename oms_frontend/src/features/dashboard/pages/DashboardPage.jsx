@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { pettyCashApi } from '@/features/petty-cash/api/pettyCashApi';
 import { leaveApi } from '@/features/leave/api/leaveApi';
 import { analyticsApi } from '@/features/analytics/api/analyticsApi';
+import { auditApi } from '@/shared/api/auditApi';
 import { PageTransition } from '@/shared/components/ui/PageTransition';
 import { LoadingSkeleton } from '@/shared/components/ui/LoadingSkeleton';
 import { StatusBadge } from '@/shared/components/ui/StatusBadge';
@@ -15,7 +16,6 @@ import {
   Wallet,
   CalendarDays,
   CheckSquare,
-  BarChart3,
   Share2,
   PlusCircle,
   Clock,
@@ -24,7 +24,6 @@ import {
   Users,
   Building,
   PiggyBank,
-  CheckCircle2,
   AlertCircle
 } from 'lucide-react';
 import {
@@ -92,6 +91,22 @@ export function DashboardPage() {
     enabled: !isExecutive,
   });
 
+  // Query: Recent audit logs for activity timeline
+  const { data: activities, isLoading: isActivitiesLoading } = useQuery({
+    queryKey: ['dashboard-activities'],
+    queryFn: () => auditApi.list({ page_size: 5 }),
+    enabled: !!user && ['TEAM_LEAD', 'GENERAL_MANAGER', 'CEO', 'ADMIN'].includes(role),
+  });
+
+  const getDhakaGreeting = () => {
+    const utc = new Date().getTime() + new Date().getTimezoneOffset() * 60000;
+    const dhakaTime = new Date(utc + 3600000 * 6);
+    const hours = dhakaTime.getHours();
+    if (hours < 12) return 'Good morning';
+    if (hours < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
   // GSAP Counter references (only populated when data loads)
   const monthlySpendRef = useGSAPCounter(execSummary?.monthly_spend || 0, [execSummary?.monthly_spend], { prefix: '৳' });
   const pendingApprovalsRef = useGSAPCounter(execSummary?.pending_approvals || 0, [execSummary?.pending_approvals]);
@@ -121,7 +136,7 @@ export function DashboardPage() {
           <div className="absolute top-[-50%] right-[-10%] w-[350px] h-[350px] bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
           <div className="space-y-2 relative z-10">
             <h2 className="text-3xl md:text-4xl font-extrabold Outfit tracking-tight">
-              Hello, {user?.first_name || user?.username}!
+              {getDhakaGreeting()}, {user?.first_name || user?.username}!
             </h2>
             <p className="text-sm text-base-content/70">
               Welcome back to <span className="font-semibold text-primary">{user?.organization?.name}</span> portal.
@@ -335,7 +350,7 @@ export function DashboardPage() {
                               border: '1px solid color-mix(in oklch, var(--color-base-content) 10%, transparent)',
                               borderRadius: '0.75rem',
                             }}
-                            formatter={(value, name, props) => {
+                            formatter={(value, name) => {
                               if (name === 'utilization_pct') return [`${value}%`, 'Utilization'];
                               return [`৳${value.toLocaleString()}`, name === 'spent' ? 'Spent' : 'Budget'];
                             }}
@@ -493,6 +508,82 @@ export function DashboardPage() {
                 )}
               </div>
             </div>
+
+            {/* Recent Activity Timeline Feed */}
+            {['TEAM_LEAD', 'GENERAL_MANAGER', 'CEO', 'ADMIN'].includes(role) && (
+              <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-bold Outfit">Recent Activity</h3>
+                  <span className="text-[10px] text-base-content/40 font-bold uppercase tracking-wider">Live Feed</span>
+                </div>
+
+                {isActivitiesLoading ? (
+                  <div className="space-y-3 pt-2">
+                    <div className="h-10 bg-base-300/40 animate-pulse rounded-xl"></div>
+                    <div className="h-10 bg-base-300/40 animate-pulse rounded-xl"></div>
+                    <div className="h-10 bg-base-300/40 animate-pulse rounded-xl"></div>
+                  </div>
+                ) : activities?.results?.length > 0 ? (
+                  <div className="flow-root pt-2">
+                    <ul className="-mb-8">
+                      {activities.results.slice(0, 4).map((activity, idx) => {
+                        const getActionLabel = (action) => {
+                          const mapping = {
+                            'SUBMIT': 'submitted',
+                            'TL_APPROVE': 'approved (TL)',
+                            'GM_APPROVE': 'approved (GM)',
+                            'CEO_DIRECT_APPROVE': 'directly approved (CEO)',
+                            'APPROVE': 'approved',
+                            'REJECT': 'rejected',
+                            'CANCEL': 'cancelled',
+                            'AMEND': 'amended',
+                            'DISBURSE': 'disbursed',
+                          };
+                          return mapping[action] || action.toLowerCase().replace('_', ' ');
+                        };
+                        const actionLabel = getActionLabel(activity.action);
+                        const amountOrDuration = activity.metadata?.amount_or_duration;
+                        const reasonText = activity.reason ? ` - "${activity.reason}"` : '';
+                        const title = activity.metadata?.title || `${activity.target_type === 'LeaveRequest' ? 'Leave' : 'Petty Cash'} Request`;
+                        const message = `${activity.actor_name || activity.actor_username || 'System'} ${actionLabel}${amountOrDuration ? ` (${amountOrDuration})` : ''}${reasonText}`;
+
+                        return (
+                          <li key={activity.id}>
+                            <div className="relative pb-6">
+                              {idx !== activities.results.slice(0, 4).length - 1 && (
+                                <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-base-content/10" aria-hidden="true" />
+                              )}
+                              <div className="relative flex space-x-3 items-start">
+                                <div className="shrink-0">
+                                  <span className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary ring-8 ring-base-100/10">
+                                    <Clock className="w-4 h-4" />
+                                  </span>
+                                </div>
+                                <div className="flex-1 min-w-0 pt-0.5">
+                                  <p className="text-xs font-bold text-base-content leading-snug text-left">
+                                    {title}
+                                  </p>
+                                  <p className="text-[10px] text-base-content/60 mt-0.5 leading-normal text-left">
+                                    {message}
+                                  </p>
+                                  <span className="text-[8px] text-base-content/40 block mt-1 font-semibold uppercase tracking-wider text-left">
+                                    {new Date(activity.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-xs text-base-content/35 font-semibold">
+                    No recent activities or updates.
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Leave Balances Panel (for employee view) */}
             {!isExecutive && (

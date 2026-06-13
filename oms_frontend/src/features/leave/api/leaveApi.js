@@ -37,8 +37,8 @@ export const leaveApi = {
   /**
    * Approve a pending leave request.
    */
-  async approveRequest(uuid) {
-    const response = await axiosInstance.post(`${API_ENDPOINTS.LEAVE_REQUESTS}${uuid}/approve/`);
+  async approveRequest(uuid, data = {}) {
+    const response = await axiosInstance.post(`${API_ENDPOINTS.LEAVE_REQUESTS}${uuid}/approve/`, data);
     return response.data;
   },
 

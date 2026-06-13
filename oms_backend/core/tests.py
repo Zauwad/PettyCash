@@ -125,11 +125,18 @@ class OMSIntegrationTests(TestCase):
             username="amaze_hr1", email="hr1@amaze.com", password="password123"
         )
         self.profile_hr1 = UserProfile.objects.create(
-            user=self.user_hr1, organization=self.org1, department=self.dept_org1_hr, role=UserRole.EMPLOYEE, employee_id="AMZ_HR1"
+            user=self.user_hr1, organization=self.org1, department=self.dept_org1_hr, role=UserRole.HR, employee_id="AMZ_HR1"
+        )
+        
+        self.user_gm1 = User.objects.create_user(
+            username="amaze_gm1", email="gm1@amaze.com", password="password123"
+        )
+        self.profile_gm1 = UserProfile.objects.create(
+            user=self.user_gm1, organization=self.org1, department=self.dept_org1_eng, role=UserRole.GENERAL_MANAGER, employee_id="AMZ_GM1"
         )
 
     def test_end_to_end_petty_cash_flow_under_limit(self):
-        """8.1: Test petty cash flow where amount requested <= TL limit (Direct TL approval)."""
+        """8.1: Test petty cash flow where amount requested <= TL limit (TL -> CEO -> HR Disburse)."""
         self.client.force_authenticate(user=self.user_emp1)
         
         # Step 1: Create request
@@ -141,7 +148,7 @@ class OMSIntegrationTests(TestCase):
             "needed_by": "2026-06-15",
             "department_id": self.dept_org1_eng.id,
             "line_items": [
-                {"description": "A4 Paper Pack", "quantity": 10, "unit_price": Decimal("400.00"), "category": "Office Supplies"}
+                {"description": "Paper packs", "quantity": 10, "unit_price": Decimal("400.00"), "category": "Office Supplies"}
             ]
         }
         response = self.client.post("/api/petty-cash/", payload, format="json")
@@ -154,20 +161,42 @@ class OMSIntegrationTests(TestCase):
         self.assertEqual(submit_res.status_code, status.HTTP_200_OK)
         self.assertEqual(submit_res.data['state'], 'pending_tl_approval')
 
-        # Step 3: TL Approves (amount is 4000, TL limit is 10000, so direct Approved)
+        # Step 3: TL Approves
         self.client.force_authenticate(user=self.user_tl1)
-        approve_res = self.client.post(f"/api/petty-cash/{uuid}/approve/", {"approved_amount": Decimal("4000.00")}, format="json")
+        approve_res = self.client.post(
+            f"/api/petty-cash/{uuid}/approve/", 
+            {
+                "amount": Decimal("4000.00"), 
+                "needed_by": "2026-06-15", 
+                "priority": "LOW", 
+                "note": "TL approved under limit"
+            }, 
+            format="json"
+        )
         self.assertEqual(approve_res.status_code, status.HTTP_200_OK)
-        self.assertEqual(approve_res.data['state'], 'approved')
-        self.assertEqual(Decimal(approve_res.data['amount_approved']), Decimal("4000.00"))
+        self.assertEqual(approve_res.data['state'], 'pending_ceo_approval')
 
-        # Step 4: Disburse partial amount (Accounts / Admin / CEO can do this)
+        # Step 3.5: CEO Approves
         self.client.force_authenticate(user=self.user_ceo1)
+        ceo_approve_res = self.client.post(
+            f"/api/petty-cash/{uuid}/approve/", 
+            {
+                "amount": Decimal("4000.00"), 
+                "needed_by": "2026-06-15", 
+                "note": "CEO approved under limit"
+            }, 
+            format="json"
+        )
+        self.assertEqual(ceo_approve_res.status_code, status.HTTP_200_OK)
+        self.assertEqual(ceo_approve_res.data['state'], 'pending_hr_disbursement')
+
+        # Step 4: Disburse partial amount (HR role must do this)
+        self.client.force_authenticate(user=self.user_hr1)
         disburse_payload = {
             "amount": Decimal("2500.00"),
             "payment_method": "CASH",
             "reference_number": "TXN-12345",
-            "notes": "First partial disbursement"
+            "note": "First partial disbursement"
         }
         disburse_res = self.client.post(f"/api/petty-cash/{uuid}/disburse/", disburse_payload, format="json")
         self.assertEqual(disburse_res.status_code, status.HTTP_200_OK)
@@ -183,7 +212,7 @@ class OMSIntegrationTests(TestCase):
             "amount": Decimal("1500.00"),
             "payment_method": "BANK_TRANSFER",
             "reference_number": "TXN-12346",
-            "notes": "Final disbursement"
+            "note": "Final disbursement"
         }
         disburse_res2 = self.client.post(f"/api/petty-cash/{uuid}/disburse/", disburse_payload2, format="json")
         self.assertEqual(disburse_res2.status_code, status.HTTP_200_OK)
@@ -221,27 +250,45 @@ class OMSIntegrationTests(TestCase):
 
         # Step 3: TL Approves (Escalates since 15000 > 10000)
         self.client.force_authenticate(user=self.user_tl1)
-        approve_res = self.client.post(f"/api/petty-cash/{uuid}/approve/", {"approved_amount": Decimal("15000.00")}, format="json")
+        approve_res = self.client.post(
+            f"/api/petty-cash/{uuid}/approve/", 
+            {
+                "amount": Decimal("15000.00"), 
+                "note": "TL approved", 
+                "priority": "HIGH", 
+                "needed_by": "2026-06-15"
+            }, 
+            format="json"
+        )
         self.assertEqual(approve_res.status_code, status.HTTP_200_OK)
         self.assertEqual(approve_res.data['state'], 'pending_ceo_approval')
-
+ 
         # Step 4: CEO Approves
         self.client.force_authenticate(user=self.user_ceo1)
-        ceo_approve_res = self.client.post(f"/api/petty-cash/{uuid}/approve/", {"approved_amount": Decimal("14000.00")}, format="json")
+        ceo_approve_res = self.client.post(
+            f"/api/petty-cash/{uuid}/approve/", 
+            {
+                "amount": Decimal("14000.00"), 
+                "note": "CEO approved", 
+                "needed_by": "2026-06-15"
+            }, 
+            format="json"
+        )
         self.assertEqual(ceo_approve_res.status_code, status.HTTP_200_OK)
-        self.assertEqual(ceo_approve_res.data['state'], 'approved')
+        self.assertEqual(ceo_approve_res.data['state'], 'pending_hr_disbursement')
         self.assertEqual(Decimal(ceo_approve_res.data['amount_approved']), Decimal("14000.00"))
-
+ 
         # Step 5: Disburse full amount
-        self.client.force_authenticate(user=self.user_admin1)
+        self.client.force_authenticate(user=self.user_hr1)
         disburse_payload = {
             "amount": Decimal("14000.00"),
-            "payment_method": "CASH"
+            "payment_method": "CASH",
+            "note": "HR disbursing over limit request"
         }
         disburse_res = self.client.post(f"/api/petty-cash/{uuid}/disburse/", disburse_payload, format="json")
         self.assertEqual(disburse_res.status_code, status.HTTP_200_OK)
         self.assertEqual(disburse_res.data['state'], 'disbursed')
-
+ 
         self.dept_org1_eng.refresh_from_db()
         self.assertEqual(self.dept_org1_eng.budget_spent_this_month, Decimal("14000.00"))
 
@@ -276,9 +323,15 @@ class OMSIntegrationTests(TestCase):
 
         # Step 3: TL Approves
         self.client.force_authenticate(user=self.user_tl1)
-        approve_res = self.client.post(f"/api/leave/requests/{uuid}/approve/")
+        approve_res = self.client.post(f"/api/leave/requests/{uuid}/approve/", {"note": "TL approved"})
         self.assertEqual(approve_res.status_code, status.HTTP_200_OK)
-        self.assertEqual(approve_res.data['state'], 'approved')
+        self.assertEqual(approve_res.data['state'], 'pending_gm_approval')
+ 
+        # Step 3.5: GM Approves
+        self.client.force_authenticate(user=self.user_gm1)
+        approve_res2 = self.client.post(f"/api/leave/requests/{uuid}/approve/", {"note": "GM approved"})
+        self.assertEqual(approve_res2.status_code, status.HTTP_200_OK)
+        self.assertEqual(approve_res2.data['state'], 'approved')
 
         # Check balance updated (pending=0.0, used=4.0, available=11.0)
         self.balance_annual.refresh_from_db()
@@ -357,7 +410,7 @@ class OMSIntegrationTests(TestCase):
 
         # Verify Employee cannot approve it
         self.client.force_authenticate(user=self.user_emp1)
-        res1 = self.client.post(f"/api/petty-cash/{req.uuid}/approve/", {"approved_amount": Decimal("20000.00")}, format="json")
+        res1 = self.client.post(f"/api/petty-cash/{req.uuid}/approve/", {"amount": Decimal("20000.00")}, format="json")
         self.assertEqual(res1.status_code, status.HTTP_403_FORBIDDEN)
 
         # CEO creates a delegation to Employee for PETTY_CASH
@@ -375,9 +428,9 @@ class OMSIntegrationTests(TestCase):
 
         # Employee tries to approve request (should succeed due to active delegation)
         self.client.force_authenticate(user=self.user_emp1)
-        res2 = self.client.post(f"/api/petty-cash/{req.uuid}/approve/", {"approved_amount": Decimal("20000.00")}, format="json")
+        res2 = self.client.post(f"/api/petty-cash/{req.uuid}/approve/", {"amount": Decimal("20000.00"), "note": "CEO delegated approval"}, format="json")
         self.assertEqual(res2.status_code, status.HTTP_200_OK)
-        self.assertEqual(res2.data['state'], 'approved')
+        self.assertEqual(res2.data['state'], 'pending_hr_disbursement')
 
         # Revoke the delegation early
         self.client.force_authenticate(user=self.user_ceo1)
@@ -397,7 +450,7 @@ class OMSIntegrationTests(TestCase):
 
         # Employee tries to approve (should fail since delegation is revoked)
         self.client.force_authenticate(user=self.user_emp1)
-        res3 = self.client.post(f"/api/petty-cash/{req2.uuid}/approve/", {"approved_amount": Decimal("20000.00")}, format="json")
+        res3 = self.client.post(f"/api/petty-cash/{req2.uuid}/approve/", {"amount": Decimal("20000.00")}, format="json")
         self.assertEqual(res3.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_bulk_approval_flow(self):
@@ -430,9 +483,9 @@ class OMSIntegrationTests(TestCase):
         req1.refresh_from_db()
         req2.refresh_from_db()
         req3.refresh_from_db()
-        self.assertEqual(req1.state, 'approved')
-        self.assertEqual(req2.state, 'approved')
-        self.assertEqual(req3.state, 'approved')
+        self.assertEqual(req1.state, 'pending_ceo_approval')
+        self.assertEqual(req2.state, 'pending_ceo_approval')
+        self.assertEqual(req3.state, 'pending_ceo_approval')
 
     def test_role_modification_permissions_and_restrictions(self):
         """9.2: Test role modification custom endpoint security and rules."""

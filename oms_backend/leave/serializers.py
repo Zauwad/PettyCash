@@ -60,15 +60,33 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         write_only=True
     )
 
+    activity_log = serializers.SerializerMethodField()
+
     class Meta:
         model = LeaveRequest
         fields = [
             'id', 'uuid', 'start_date', 'end_date', 'working_days_requested', 
             'is_half_day', 'half_day_period', 'reason', 'state', 'rejection_reason', 
+            'tl_approval_note', 'gm_approval_note', 'ceo_approval_note',
+            'tl_approved_start_date', 'tl_approved_end_date',
+            'gm_approved_start_date', 'gm_approved_end_date',
             'requester_name', 'leave_type_details', 'leave_type_id', 
-            'delegate_name', 'delegate_to_id', 'created_at', 'updated_at'
+            'delegate_name', 'delegate_to_id', 'created_at', 'updated_at',
+            'activity_log'
         ]
-        read_only_fields = ['uuid', 'working_days_requested', 'state', 'rejection_reason', 'created_at', 'updated_at']
+        read_only_fields = [
+            'uuid', 'working_days_requested', 'state', 'rejection_reason',
+            'tl_approval_note', 'gm_approval_note', 'ceo_approval_note',
+            'tl_approved_start_date', 'tl_approved_end_date',
+            'gm_approved_start_date', 'gm_approved_end_date',
+            'created_at', 'updated_at', 'activity_log'
+        ]
+
+    def get_activity_log(self, obj):
+        from core.models import AuditLog
+        from core.serializers import AuditLogSerializer
+        logs = AuditLog.objects.filter(target_type='LeaveRequest', target_id=obj.id).order_by('created_at')
+        return AuditLogSerializer(logs, many=True).data
 
     def validate(self, attrs):
         request = self.context.get('request')

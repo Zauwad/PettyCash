@@ -156,7 +156,7 @@ class PettyCashAPITests(TestCase):
         )
         
         self.client.force_authenticate(user=self.user_tl)
-        response = self.client.post(f"/api/petty-cash/{req.uuid}/approve/", {"approved_amount": 15000.00}, format="json")
+        response = self.client.post(f"/api/petty-cash/{req.uuid}/approve/", {"amount": 15000.00, "note": "TL approved"}, format="json")
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         
         req.refresh_from_db()

@@ -170,9 +170,21 @@ class LeaveAPITests(TestCase):
         self.balance_annual.pending = 4.0
         self.balance_annual.save()
         
+        # TL Approves
         self.client.force_authenticate(user=self.user_tl)
-        response = self.client.post(f"/api/leave/requests/{req.uuid}/approve/")
+        response = self.client.post(f"/api/leave/requests/{req.uuid}/approve/", {"note": "TL approved"})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # GM Approves
+        user_gm = User.objects.create_user(
+            username="gm1_test", email="gm1_test@amaze.com", password="password123"
+        )
+        UserProfile.objects.create(
+            user=user_gm, organization=self.org, department=self.dept, role=UserRole.GENERAL_MANAGER, employee_id="AMZ03_TEST"
+        )
+        self.client.force_authenticate(user=user_gm)
+        response2 = self.client.post(f"/api/leave/requests/{req.uuid}/approve/", {"note": "GM approved"})
+        self.assertEqual(response2.status_code, status.HTTP_200_OK)
         
         self.balance_annual.refresh_from_db()
         self.assertEqual(float(self.balance_annual.pending), 0.0)

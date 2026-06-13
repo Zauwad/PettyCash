@@ -11,6 +11,8 @@ class UserRole(models.TextChoices):
     """
     EMPLOYEE = "EMPLOYEE", "Employee"
     TEAM_LEAD = "TEAM_LEAD", "Team Lead"
+    GENERAL_MANAGER = "GENERAL_MANAGER", "General Manager"
+    HR = "HR", "HR"
     CEO = "CEO", "CEO"
     ADMIN = "ADMIN", "Global Admin"
 

@@ -43,13 +43,16 @@ export const pettyCashApi = {
     return response.data;
   },
 
-  /**
-   * Approve a pending request (Team Lead / CEO).
-   * Optionally specify an approved_amount.
-   */
-  async approve(uuid, approvedAmount = null) {
-    const data = approvedAmount ? { approved_amount: approvedAmount } : {};
+  async approve(uuid, data = {}) {
     const response = await axiosInstance.post(`${API_ENDPOINTS.PETTY_CASH}${uuid}/approve/`, data);
+    return response.data;
+  },
+
+  /**
+   * Resubmit a request from rejected_by_ceo state directly to CEO.
+   */
+  async resubmit(uuid, data) {
+    const response = await axiosInstance.post(`${API_ENDPOINTS.PETTY_CASH}${uuid}/resubmit/`, data);
     return response.data;
   },
 
