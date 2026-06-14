@@ -20,12 +20,5 @@ Pillow>=10.0.0,<11.0.0
 whitenoise>=6.5.0,<7.0.0
 gunicorn>=21.0.0,<23.0.0
 
-# Realtime & Async Task Processing
-celery>=5.3.0,<5.5.0
-redis>=5.0.0,<5.1.0
-channels>=4.0.0,<4.1.0
-channels-redis>=4.0.0,<4.2.0
-daphne>=4.0.0,<4.1.0
-
 # API Documentation
 drf-spectacular>=0.26.0,<0.28.0

@@ -3,8 +3,6 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django_fsm.signals import post_transition
 from django.utils import timezone
-from asgiref.sync import async_to_sync
-from channels.layers import get_channel_layer
 
 from core.models import AuditLog, Notification, ApprovalDelegation
 from core.thread_local import get_current_user
@@ -15,20 +13,9 @@ logger = logging.getLogger(__name__)
 
 def broadcast_to_websocket(group_name, message_type, data):
     """
-    Safely sends a message payload to a Channels group layer.
+    WebSocket broadcasts are disabled (Vercel serverless mode).
     """
-    channel_layer = get_channel_layer()
-    if channel_layer:
-        try:
-            async_to_sync(channel_layer.group_send)(
-                group_name,
-                {
-                    "type": message_type,
-                    "data": data
-                }
-            )
-        except Exception as e:
-            logger.error(f"WebSocket broadcast failed: {e}")
+    pass
 
 @receiver(post_transition)
 def log_fsm_transition(sender, instance, name, source, target, **kwargs):
