@@ -1,5 +1,5 @@
 import logging
-from celery import shared_task
+import threading
 from django.core.mail import send_mail
 from django.db import transaction
 from datetime import date
@@ -9,10 +9,23 @@ from core.models import Department, ApprovalDelegation
 
 logger = logging.getLogger(__name__)
 
-@shared_task(name="core.tasks.send_email_async")
+def background_task(func):
+    """
+    Lightweight decorator to run functions asynchronously in a background thread.
+    Exposes a '.delay(*args, **kwargs)' method to mimic the Celery API.
+    """
+    def delay(*args, **kwargs):
+        thread = threading.Thread(target=func, args=args, kwargs=kwargs)
+        thread.daemon = True
+        thread.start()
+        logger.info(f"Started background thread task: {func.__name__}")
+    func.delay = delay
+    return func
+
+@background_task
 def send_email_async(subject, message, recipient_list):
     """
-    Asynchronously sends an email notification.
+    Asynchronously sends an email notification in a background thread.
     Uses DEFAULT_FROM_EMAIL.
     """
     if not recipient_list:
@@ -32,10 +45,9 @@ def send_email_async(subject, message, recipient_list):
         logger.error(f"Failed to send async email to {recipient_list}: {e}")
         raise e
 
-@shared_task(name="core.tasks.reset_monthly_budgets")
 def reset_monthly_budgets():
     """
-    Celery Beat task to reset budgets spent totals based on frequency.
+    Resets budgets spent totals based on frequency.
     Runs daily, resetting departments when they reach their frequency cycle boundary.
     """
     today = date.today()
@@ -74,10 +86,9 @@ def reset_monthly_budgets():
     logger.info(f"Budget reset run for date {today}: Reset {count} departments.")
     return f"Reset {count} budgets."
 
-@shared_task(name="core.tasks.expire_delegations_daily")
 def expire_delegations_daily():
     """
-    Celery Beat task to deactivate expired approval delegations.
+    Deactivates expired approval delegations.
     Runs daily.
     """
     today = date.today()
