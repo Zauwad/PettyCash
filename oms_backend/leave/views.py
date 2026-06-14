@@ -415,3 +415,51 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
             })
             
         return Response(data)
+
+    @action(detail=False, methods=['get'], url_path='overlapping-leaves')
+    def overlapping_leaves(self, request):
+        """
+        Check if any employee's approved/pending leaves overlap with the specified date range.
+        Query params: start_date, end_date, exclude_uuid (optional).
+        """
+        start_date_str = request.query_params.get('start_date')
+        end_date_str = request.query_params.get('end_date')
+        exclude_uuid = request.query_params.get('exclude_uuid')
+        
+        if not start_date_str or not end_date_str:
+            return Response({"detail": "start_date and end_date query parameters are required."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        try:
+            start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return Response({"detail": "Invalid date format. Use YYYY-MM-DD."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        overlapping = LeaveRequest.objects.filter(
+            organization=request.organization,
+            state__in=['pending_tl_approval', 'pending_ceo_approval', 'approved']
+        ).filter(
+            start_date__lte=end_date,
+            end_date__gte=start_date
+        ).select_related('requester__profile', 'leave_type')
+        
+        data = []
+        for r in overlapping:
+            if exclude_uuid and str(r.uuid) == exclude_uuid:
+                continue
+            if r.requester == request.user:
+                continue
+                
+            profile = getattr(r.requester, 'profile', None)
+            data.append({
+                "uuid": str(r.uuid),
+                "employee_name": r.requester.get_full_name() or r.requester.username,
+                "department_name": profile.department.name if profile and profile.department else "Unassigned",
+                "start_date": r.start_date.strftime("%Y-%m-%d"),
+                "end_date": r.end_date.strftime("%Y-%m-%d"),
+                "state": r.state,
+                "leave_type_name": r.leave_type.name,
+                "working_days_requested": float(r.working_days_requested)
+            })
+            
+        return Response(data)

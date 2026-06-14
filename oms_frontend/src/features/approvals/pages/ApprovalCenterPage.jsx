@@ -50,12 +50,10 @@ export function ApprovalCenterPage() {
   const [rejectionReason, setRejectionReason] = useState('');
 
   // Fetch Petty Cash requests in pending states
-  const pettyCashParams = {};
-  
   const { data: pettyCashPending, isLoading: isPettyCashLoading } = useQuery({
-    queryKey: ['pending-petty-cash', pettyCashParams],
+    queryKey: ['pending-petty-cash'],
     queryFn: async () => {
-      const res = await pettyCashApi.list(pettyCashParams);
+      const res = await pettyCashApi.list({ page_size: 100 });
       return res.results?.filter(r => {
         const isOwner = r.requester_email === user?.email;
         if (isOwner) return false;
@@ -75,11 +73,10 @@ export function ApprovalCenterPage() {
   });
 
   // Fetch Leave requests in pending states
-  const leaveParams = {};
   const { data: leavePending, isLoading: isLeaveLoading } = useQuery({
-    queryKey: ['pending-leaves', leaveParams],
+    queryKey: ['pending-leaves'],
     queryFn: async () => {
-      const res = await leaveApi.listRequests(leaveParams);
+      const res = await leaveApi.listRequests({ page_size: 100 });
       return res.results?.filter(r => {
         const isOwner = r.requester_name === user?.first_name + ' ' + (user?.last_name || '') || r.requester_name === user?.username;
         if (isOwner) return false;
@@ -100,8 +97,9 @@ export function ApprovalCenterPage() {
     mutationFn: (uuid) => pettyCashApi.approve(uuid),
     onSuccess: () => {
       toast.success('Petty cash request approved.');
-      queryClient.invalidateQueries({ queryKey: ['pending-petty-cash'] });
-      queryClient.invalidateQueries({ queryKey: ['petty-cash-list'] });
+      ['pending-petty-cash', 'petty-cash-list', 'analytics-summary', 'analytics-spending-trends', 'analytics-burn-rate', 'dashboard-petty-cash', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to approve.');
@@ -115,8 +113,9 @@ export function ApprovalCenterPage() {
       toast.success('Petty cash request rejected.');
       setShowRejectModal(false);
       setRejectionReason('');
-      queryClient.invalidateQueries({ queryKey: ['pending-petty-cash'] });
-      queryClient.invalidateQueries({ queryKey: ['petty-cash-list'] });
+      ['pending-petty-cash', 'petty-cash-list', 'analytics-summary', 'analytics-spending-trends', 'analytics-burn-rate', 'dashboard-petty-cash', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to reject.');
@@ -128,8 +127,9 @@ export function ApprovalCenterPage() {
     mutationFn: (uuid) => leaveApi.approveRequest(uuid),
     onSuccess: () => {
       toast.success('Leave request approved.');
-      queryClient.invalidateQueries({ queryKey: ['pending-leaves'] });
-      queryClient.invalidateQueries({ queryKey: ['leave-requests-list'] });
+      ['pending-leaves', 'leave-requests-list', 'analytics-summary', 'dashboard-upcoming-absences', 'dashboard-leave-balances', 'dashboard-leave-requests', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to approve.');
@@ -143,8 +143,9 @@ export function ApprovalCenterPage() {
       toast.success('Leave request rejected.');
       setShowRejectModal(false);
       setRejectionReason('');
-      queryClient.invalidateQueries({ queryKey: ['pending-leaves'] });
-      queryClient.invalidateQueries({ queryKey: ['leave-requests-list'] });
+      ['pending-leaves', 'leave-requests-list', 'analytics-summary', 'dashboard-upcoming-absences', 'dashboard-leave-balances', 'dashboard-leave-requests', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to reject.');
@@ -159,7 +160,9 @@ export function ApprovalCenterPage() {
       const failed = res.failed?.length || 0;
       toast.success(`Successfully approved ${succeeded} requests.${failed > 0 ? ` Failed ${failed}.` : ''}`);
       setSelectedPettyCash([]);
-      queryClient.invalidateQueries({ queryKey: ['pending-petty-cash'] });
+      ['pending-petty-cash', 'petty-cash-list', 'analytics-summary', 'analytics-spending-trends', 'analytics-burn-rate', 'dashboard-petty-cash', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     },
     onError: () => {
       toast.error('Bulk approval failed.');
@@ -176,7 +179,9 @@ export function ApprovalCenterPage() {
       setSelectedPettyCash([]);
       setShowRejectModal(false);
       setRejectionReason('');
-      queryClient.invalidateQueries({ queryKey: ['pending-petty-cash'] });
+      ['pending-petty-cash', 'petty-cash-list', 'analytics-summary', 'analytics-spending-trends', 'analytics-burn-rate', 'dashboard-petty-cash', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     },
     onError: () => {
       toast.error('Bulk rejection failed.');
@@ -194,8 +199,10 @@ export function ApprovalCenterPage() {
       const failed = results.filter(r => r.status === 'rejected').length;
       toast.success(`Approved ${succeeded} leave requests.${failed > 0 ? ` Failed ${failed}.` : ''}`);
       setSelectedLeave([]);
-      queryClient.invalidateQueries({ queryKey: ['pending-leaves'] });
-    }
+      ['pending-leaves', 'leave-requests-list', 'analytics-summary', 'dashboard-upcoming-absences', 'dashboard-leave-balances', 'dashboard-leave-requests', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
+    },
   });
 
   // Mutation: Bulk Reject Leaves (Iterative parallel requests)
@@ -211,7 +218,9 @@ export function ApprovalCenterPage() {
       setSelectedLeave([]);
       setShowRejectModal(false);
       setRejectionReason('');
-      queryClient.invalidateQueries({ queryKey: ['pending-leaves'] });
+      ['pending-leaves', 'leave-requests-list', 'analytics-summary', 'dashboard-upcoming-absences', 'dashboard-leave-balances', 'dashboard-leave-requests', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     }
   });
 
@@ -311,12 +320,12 @@ export function ApprovalCenterPage() {
         {/* Bulk Action floating bar (displays when selection > 0) */}
         {((activeTab === 'petty_cash' && selectedPettyCash.length > 0) || 
           (activeTab === 'leave' && selectedLeave.length > 0)) && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-base-200 border border-base-content/10 shadow-2xl rounded-2xl px-6 py-4 flex items-center gap-6 z-40 animate-slide-up max-w-lg w-full justify-between glass-panel">
-            <span className="text-xs font-bold text-base-content">
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-base-200 border border-base-content/10 shadow-2xl rounded-2xl p-4 sm:px-6 sm:py-4 flex items-center gap-4 sm:gap-6 z-40 animate-slide-up w-[calc(100%-2rem)] sm:max-w-lg justify-between glass-panel">
+            <span className="text-xs font-bold text-base-content shrink-0">
               {activeTab === 'petty_cash' ? selectedPettyCash.length : selectedLeave.length} selected
             </span>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 flex-1 sm:flex-initial justify-end">
               <button
                 onClick={() => {
                   if (activeTab === 'petty_cash') {
@@ -326,20 +335,20 @@ export function ApprovalCenterPage() {
                   }
                 }}
                 disabled={bulkApprovePettyCashMutation.isPending || bulkApproveLeavesMutation.isPending}
-                className="btn btn-success text-success-content btn-sm rounded-xl font-bold gap-1 text-xs"
+                className="btn btn-success text-success-content btn-sm rounded-xl font-bold gap-1 text-xs flex-1 sm:flex-initial px-2 sm:px-3"
               >
-                <Check className="w-4.5 h-4.5" />
-                Approve Selected
+                <Check className="w-4 h-4 shrink-0" />
+                <span>Approve<span className="hidden sm:inline"> Selected</span></span>
               </button>
               <button
                 onClick={() => {
                   setRejectionTarget({ type: activeTab, bulk: true });
                   setShowRejectModal(true);
                 }}
-                className="btn btn-error text-error-content btn-sm rounded-xl font-bold gap-1 text-xs"
+                className="btn btn-error text-error-content btn-sm rounded-xl font-bold gap-1 text-xs flex-1 sm:flex-initial px-2 sm:px-3"
               >
-                <X className="w-4.5 h-4.5" />
-                Reject Selected
+                <X className="w-4 h-4 shrink-0" />
+                <span>Reject<span className="hidden sm:inline"> Selected</span></span>
               </button>
             </div>
           </div>

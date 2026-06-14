@@ -112,4 +112,14 @@ export const leaveApi = {
     const response = await axiosInstance.get(API_ENDPOINTS.LEAVE_TEAM_CALENDAR, { params });
     return response.data;
   },
+
+  /**
+   * Fetch a list of overlapping leaves for a date range.
+   */
+  async getOverlappingLeaves(startDate, endDate, excludeUuid = null) {
+    const params = { start_date: startDate, end_date: endDate };
+    if (excludeUuid) params.exclude_uuid = excludeUuid;
+    const response = await axiosInstance.get(`${API_ENDPOINTS.LEAVE_REQUESTS}overlapping-leaves/`, { params });
+    return response.data;
+  },
 };

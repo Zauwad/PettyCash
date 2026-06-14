@@ -51,3 +51,22 @@ class IsCEOOrAdmin(permissions.BasePermission):
             if hasattr(user, 'profile'):
                 return user.profile.role in [UserRole.CEO, UserRole.ADMIN]
         return False
+
+
+class CanAccessAnalytics(permissions.BasePermission):
+    """
+    DRF Permission Class to restrict access to CEOs, Admins, GMs, Team Leads, and HR.
+    """
+    def has_permission(self, request, view):
+        user = request.user
+        if user and user.is_authenticated:
+            if hasattr(user, 'profile'):
+                return user.profile.role in [
+                    UserRole.CEO,
+                    UserRole.ADMIN,
+                    UserRole.GENERAL_MANAGER,
+                    UserRole.TEAM_LEAD,
+                    UserRole.HR
+                ]
+        return False
+

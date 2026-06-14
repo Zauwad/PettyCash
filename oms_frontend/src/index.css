@@ -268,4 +268,10 @@ h1, h2, h3, h4, h5, h6 {
   background-image: radial-gradient(circle, color-mix(in oklch, var(--color-base-content) 8%, transparent) 1px, transparent 1px);
 }
 
+/* Fix stacking context overlap issues for dropdown menus in tables */
+tr:has(.z-30) {
+  position: relative !important;
+  z-index: 40 !important;
+}
+
 

@@ -117,12 +117,25 @@ export function Header({ onMenuToggle }) {
           </button>
 
           {/* User profile dropdown summary */}
-          <div className="flex items-center gap-2 border-l border-base-content/10 pl-4">
-            <div className="text-right hidden sm:block">
-              <h4 className="text-xs font-bold text-base-content">
+          <div className="flex items-center gap-3 border-l border-base-content/10 pl-4">
+            {user?.profile?.avatar_url ? (
+              <img 
+                src={user.profile.avatar_url} 
+                alt={user.first_name || user.username} 
+                className="w-8 h-8 rounded-full object-cover border border-primary/20 shrink-0"
+              />
+            ) : (
+              <div className="bg-primary/10 text-primary rounded-full w-8 h-8 border border-primary/20 flex items-center justify-center font-bold text-[10px] uppercase shrink-0">
+                {user?.first_name 
+                  ? (user.first_name[0] + (user.last_name ? user.last_name[0] : '')).toUpperCase() 
+                  : user?.username?.substring(0, 2).toUpperCase()}
+              </div>
+            )}
+            <div className="text-left hidden sm:block">
+              <h4 className="text-xs font-bold text-base-content leading-tight">
                 {user?.first_name ? `${user.first_name} ${user.last_name || ''}` : user?.username}
               </h4>
-              <span className="text-[10px] text-base-content/50 font-medium tracking-wide">
+              <span className="text-[10px] text-base-content/50 font-medium tracking-wide block mt-0.5">
                 {roleDisplay}
               </span>
             </div>

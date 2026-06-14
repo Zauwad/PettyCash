@@ -84,8 +84,8 @@ class UserViewSet(
         actor_profile = getattr(actor, 'profile', None)
         
         is_actor_hr = False
-        if actor_profile and actor_profile.department:
-            is_actor_hr = "HR" in actor_profile.department.name.upper()
+        if actor_profile:
+            is_actor_hr = (actor_profile.role == UserRole.HR) or (actor_profile.department and "HR" in actor_profile.department.name.upper())
             
         if not actor_profile or (actor_profile.role not in [UserRole.CEO, UserRole.ADMIN] and not is_actor_hr):
             return Response(
@@ -126,8 +126,8 @@ class UserViewSet(
         # Check if the actor is in the HR department
         actor_profile = getattr(actor, 'profile', None)
         is_actor_hr = False
-        if actor_profile and actor_profile.department:
-            is_actor_hr = "HR" in actor_profile.department.name.upper()
+        if actor_profile:
+            is_actor_hr = (actor_profile.role == UserRole.HR) or (actor_profile.department and "HR" in actor_profile.department.name.upper())
             
         # Permission check: Only CEO, ADMIN, or HR department members can change roles
         if not actor_profile or (actor_profile.role not in [UserRole.CEO, UserRole.ADMIN] and not is_actor_hr):
@@ -156,12 +156,20 @@ class UserViewSet(
                 status=status.HTTP_400_BAD_REQUEST
             )
             
-        # Admin restriction: Non-admins cannot assign ADMIN role
-        if actor_profile.role != UserRole.ADMIN and new_role == UserRole.ADMIN:
-            return Response(
-                {"detail": "Only Global Admins can assign the Global Admin role."},
-                status=status.HTTP_403_FORBIDDEN
-            )
+        # Admin/CEO restriction: Non-admins cannot modify CEO or ADMIN roles, or assign those roles
+        target_profile = getattr(user_to_update, 'profile', None)
+        target_role = target_profile.role if target_profile else None
+        if actor_profile.role != UserRole.ADMIN:
+            if target_role in [UserRole.ADMIN, UserRole.CEO]:
+                return Response(
+                    {"detail": f"Only Global Admins can modify {target_role} accounts."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if new_role in [UserRole.ADMIN, UserRole.CEO]:
+                return Response(
+                    {"detail": f"Only Global Admins can assign the {new_role} role."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
             
         # Update user profile role
         profile = user_to_update.profile
@@ -186,11 +194,21 @@ class UserViewSet(
         return Response(UserSerializer(user_to_update).data)
 
 
-class DepartmentViewSet(OrganizationViewSetMixin, viewsets.ReadOnlyModelViewSet):
+class DepartmentViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     """
-    ViewSet to allow listing and retrieving departments scoped to the organization.
+    ViewSet to allow listing, retrieving, and updating departments scoped to the organization.
     """
     queryset = Department.objects.all()
     serializer_class = DepartmentSummarySerializer
     permission_classes = [IsAuthenticated, IsOrganizationMember]
+
+    def update(self, request, *args, **kwargs):
+        """Allow only CEOs or Admins to update department details (budget, limit, frequency)."""
+        actor_profile = getattr(request.user, 'profile', None)
+        if not actor_profile or actor_profile.role not in [UserRole.CEO, UserRole.ADMIN]:
+            return Response(
+                {"detail": "Only CEOs or Admins can modify department configurations/budgets."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        return super().update(request, *args, **kwargs)
 

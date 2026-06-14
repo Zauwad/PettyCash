@@ -11,7 +11,7 @@ export function MobileNav({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const role = user?.profile?.role;
   const location = useLocation();
-  const isHR = user?.profile?.department?.name?.toUpperCase().includes('HR');
+  const isHR = role === ROLES.HR || user?.profile?.department?.name?.toUpperCase().includes('HR');
   const isAnalyticsActive = location.pathname.startsWith('/analytics');
   const [analyticsOpen, setAnalyticsOpen] = useState(isAnalyticsActive);
   const canSeeAnalytics = ANALYTICS_ROLES.includes(role);
@@ -22,7 +22,7 @@ export function MobileNav({ isOpen, onClose }) {
     { to: '/leave', label: 'Leave Management' },
     { to: '/approvals', label: 'Approvals', allowed: [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR] },
     { to: '/delegation', label: 'Delegation', allowed: [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.GENERAL_MANAGER] },
-    { to: '/team', label: 'Team Management', allowed: [ROLES.CEO, ROLES.ADMIN], allowHR: true },
+    { to: '/team', label: 'Team Management', allowed: [ROLES.CEO, ROLES.ADMIN, ROLES.HR], allowHR: true },
   ];
 
   const analyticsSubLinks = [

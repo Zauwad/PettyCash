@@ -28,6 +28,12 @@ class Organization(models.Model):
         return self.name
 
 
+class BudgetFrequency(models.TextChoices):
+    MONTHLY = "MONTHLY", "Monthly"
+    QUARTERLY = "QUARTERLY", "Quarterly"
+    YEARLY = "YEARLY", "Yearly"
+
+
 class Department(models.Model):
     """
     Scoping container inside an Organization.
@@ -44,7 +50,13 @@ class Department(models.Model):
         max_digits=12,
         decimal_places=2,
         default=0.00,
-        help_text="Monthly budget in BDT (৳)"
+        help_text="Budget amount in BDT (৳)"
+    )
+    budget_frequency = models.CharField(
+        max_length=20,
+        choices=BudgetFrequency.choices,
+        default=BudgetFrequency.MONTHLY,
+        help_text="Budget cycle frequency"
     )
     budget_spent_this_month = models.DecimalField(
         max_digits=12,
