@@ -53,6 +53,13 @@ export function LeaveDetailPage() {
     queryKey: ['leave-request-detail', uuid],
   };
 
+  const invalidateLeaves = () => {
+    queryClient.invalidateQueries(queryParams);
+    ['pending-leaves', 'leave-requests-list', 'analytics-summary', 'dashboard-upcoming-absences', 'dashboard-leave-balances', 'dashboard-leave-requests', 'dashboard-activities'].forEach(key => {
+      queryClient.invalidateQueries({ queryKey: [key] });
+    });
+  };
+
   // Pre-fill dates when request changes
   useEffect(() => {
     if (request) {
@@ -66,7 +73,7 @@ export function LeaveDetailPage() {
     mutationFn: () => leaveApi.submitRequest(uuid),
     onSuccess: () => {
       toast.success('Leave request submitted!');
-      queryClient.invalidateQueries(queryParams);
+      invalidateLeaves();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to submit request.');
@@ -80,7 +87,7 @@ export function LeaveDetailPage() {
       toast.success('Leave request approved!');
       setShowApproveModal(false);
       setApproveNote('');
-      queryClient.invalidateQueries(queryParams);
+      invalidateLeaves();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to approve request.');
@@ -94,7 +101,7 @@ export function LeaveDetailPage() {
       toast.success('Leave request rejected.');
       setShowRejectModal(false);
       setRejectionReason('');
-      queryClient.invalidateQueries(queryParams);
+      invalidateLeaves();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to reject request.');
@@ -106,7 +113,7 @@ export function LeaveDetailPage() {
     mutationFn: () => leaveApi.amendRequest(uuid),
     onSuccess: () => {
       toast.success('Request returned to draft.');
-      queryClient.invalidateQueries(queryParams);
+      invalidateLeaves();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to amend request.');
@@ -118,8 +125,7 @@ export function LeaveDetailPage() {
     mutationFn: () => leaveApi.cancelRequest(uuid),
     onSuccess: () => {
       toast.success('Leave request cancelled.');
-      queryClient.invalidateQueries(queryParams);
-      queryClient.invalidateQueries({ queryKey: ['leave-requests-list'] });
+      invalidateLeaves();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to cancel request.');

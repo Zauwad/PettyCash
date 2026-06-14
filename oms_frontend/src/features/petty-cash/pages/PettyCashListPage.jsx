@@ -89,6 +89,7 @@ export function PettyCashListPage() {
   // Department Budget Info
   const deptBudget = parseFloat(user?.profile?.department?.monthly_budget || 0);
   const deptSpent = parseFloat(user?.profile?.department?.budget_spent_this_month || 0);
+  const budgetFrequency = user?.profile?.department?.budget_frequency || 'MONTHLY';
   const remainingBudget = deptBudget - deptSpent;
 
   // React Hook Form
@@ -162,6 +163,9 @@ export function PettyCashListPage() {
       });
       queryClient.invalidateQueries({ queryKey: ['petty-cash-list'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-petty-cash'] });
+      ['pending-petty-cash', 'analytics-summary', 'analytics-spending-trends', 'analytics-burn-rate', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     },
     onError: (err) => {
       const msg = err.response?.data?.detail || 'Failed to create requisition.';
@@ -673,7 +677,7 @@ export function PettyCashListPage() {
                 <div className="space-y-4 pt-2">
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-base-content/60">Department Budget</span>
+                      <span className="text-base-content/60">{budgetFrequency === 'MONTHLY' ? 'Monthly' : budgetFrequency === 'QUARTERLY' ? 'Quarterly' : 'Yearly'} Budget</span>
                       <span>৳{deptBudget.toLocaleString()}</span>
                     </div>
                     <div className="flex justify-between text-xs font-semibold">

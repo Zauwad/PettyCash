@@ -186,6 +186,96 @@ def log_fsm_transition(sender, instance, name, source, target, **kwargs):
                         f"Best regards,\nOMS Team"
                     )
                     send_email_async.delay(subject, email_body, [ceo.user.email])
+
+        elif target == 'pending_gm_approval':
+            # Notify GM(s) of the organization
+            gms = UserProfile.objects.filter(
+                organization=organization,
+                role=UserRole.GENERAL_MANAGER
+            ).select_related('user')
+            
+            for gm in gms:
+                # In-app notification
+                notif = Notification.objects.create(
+                    recipient=gm.user,
+                    notification_type=Notification.NotificationType.APPROVAL_NEEDED,
+                    title="GM Approval Needed",
+                    message=f"{requester.get_full_name() if requester.get_full_name() else requester.username}'s {model_name} requires GM approval.",
+                    action_url=action_url
+                )
+                
+                # WebSockets broadcast (realtime delivery)
+                broadcast_to_websocket(
+                    f"user_{gm.user.id}",
+                    "send_notification",
+                    {
+                        "id": notif.id,
+                        "notification_type": notif.notification_type,
+                        "title": notif.title,
+                        "message": notif.message,
+                        "action_url": notif.action_url,
+                        "is_read": False,
+                        "created_at": notif.created_at.isoformat()
+                    }
+                )
+
+                # Async Email Notification
+                if gm.user.email:
+                    subject = f"OMS: GM Approval Needed for {model_name}"
+                    email_body = (
+                        f"Hello {gm.user.get_full_name() or gm.user.username},\n\n"
+                        f"{requester.get_full_name() or requester.username}'s {model_name} request requires GM approval.\n\n"
+                        f"Details: {getattr(instance, 'title', '') or getattr(instance, 'reason', '')}\n"
+                        f"Amount/Duration: {amount_meta}\n\n"
+                        f"Please review the request in the system.\n\n"
+                        f"Best regards,\nOMS Team"
+                    )
+                    send_email_async.delay(subject, email_body, [gm.user.email])
+
+        elif target == 'pending_hr_disbursement':
+            # Notify HR(s) of the organization
+            hrs = UserProfile.objects.filter(
+                organization=organization,
+                role=UserRole.HR
+            ).select_related('user')
+            
+            for hr in hrs:
+                # In-app notification
+                notif = Notification.objects.create(
+                    recipient=hr.user,
+                    notification_type=Notification.NotificationType.APPROVAL_NEEDED,
+                    title="Payout Disbursement Pending",
+                    message=f"{requester.get_full_name() if requester.get_full_name() else requester.username}'s petty cash request is approved and pending payout.",
+                    action_url=action_url
+                )
+                
+                # WebSockets broadcast (realtime delivery)
+                broadcast_to_websocket(
+                    f"user_{hr.user.id}",
+                    "send_notification",
+                    {
+                        "id": notif.id,
+                        "notification_type": notif.notification_type,
+                        "title": notif.title,
+                        "message": notif.message,
+                        "action_url": notif.action_url,
+                        "is_read": False,
+                        "created_at": notif.created_at.isoformat()
+                    }
+                )
+
+                # Async Email Notification
+                if hr.user.email:
+                    subject = f"OMS: Petty Cash Payout Pending"
+                    email_body = (
+                        f"Hello {hr.user.get_full_name() or hr.user.username},\n\n"
+                        f"{requester.get_full_name() or requester.username}'s petty cash request is approved and pending payout.\n\n"
+                        f"Details: {getattr(instance, 'title', '') or getattr(instance, 'reason', '')}\n"
+                        f"Approved Amount: {amount_meta}\n\n"
+                        f"Please review the request in the system.\n\n"
+                        f"Best regards,\nOMS Team"
+                    )
+                    send_email_async.delay(subject, email_body, [hr.user.email])
                 
         elif target in ['approved', 'rejected', 'disbursed', 'partially_disbursed']:
             # Notify requester about state change

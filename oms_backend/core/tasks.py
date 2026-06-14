@@ -35,11 +35,35 @@ def send_email_async(subject, message, recipient_list):
 @shared_task(name="core.tasks.reset_monthly_budgets")
 def reset_monthly_budgets():
     """
-    Celery Beat task to reset monthly budgets spent totals.
-    Runs daily, resetting departments where the current day matches their budget_reset_day.
+    Celery Beat task to reset budgets spent totals based on frequency.
+    Runs daily, resetting departments when they reach their frequency cycle boundary.
     """
     today = date.today()
-    departments = Department.objects.filter(budget_reset_day=today.day, is_active=True)
+    
+    # 1. Monthly Reset
+    monthly_depts = Department.objects.filter(
+        budget_frequency='MONTHLY',
+        budget_reset_day=today.day,
+        is_active=True
+    )
+    
+    # 2. Quarterly Reset: Jan 1, Apr 1, Jul 1, Oct 1
+    is_quarter_start = (today.month in [1, 4, 7, 10]) and (today.day == 1)
+    quarterly_depts = Department.objects.filter(
+        budget_frequency='QUARTERLY',
+        is_active=True
+    ) if is_quarter_start else Department.objects.none()
+    
+    # 3. Yearly Reset: Jan 1
+    is_year_start = (today.month == 1) and (today.day == 1)
+    yearly_depts = Department.objects.filter(
+        budget_frequency='YEARLY',
+        is_active=True
+    ) if is_year_start else Department.objects.none()
+    
+    # Combine querysets using union/OR
+    departments = (monthly_depts | quarterly_depts | yearly_depts).distinct()
+    
     count = 0
     with transaction.atomic():
         for dept in departments:
@@ -47,7 +71,7 @@ def reset_monthly_budgets():
             dept.save()
             count += 1
             
-    logger.info(f"Monthly budget reset: Reset {count} departments on day {today.day}.")
+    logger.info(f"Budget reset run for date {today}: Reset {count} departments.")
     return f"Reset {count} budgets."
 
 @shared_task(name="core.tasks.expire_delegations_daily")

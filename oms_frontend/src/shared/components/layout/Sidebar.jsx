@@ -31,7 +31,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const { user, logout } = useAuth();
   const role = user?.profile?.role || user?.role;
   const location = useLocation();
-  const isHR = user?.profile?.department?.name?.toUpperCase().includes('HR');
+  const isHR = role === ROLES.HR || user?.profile?.department?.name?.toUpperCase().includes('HR');
 
   // Whether the analytics sub-menu is expanded
   const isAnalyticsActive = location.pathname.startsWith('/analytics');
@@ -39,9 +39,9 @@ export function Sidebar({ isCollapsed, onToggle }) {
 
   // Query: Get pending approvals count for TL/CEO/Admin/GM/HR
   const { data: pettyCashPending } = useQuery({
-    queryKey: ['sidebar-pending-petty-cash'],
+    queryKey: ['pending-petty-cash'],
     queryFn: async () => {
-      const res = await pettyCashApi.list();
+      const res = await pettyCashApi.list({ page_size: 100 });
       return res.results?.filter(r => {
         const isOwner = r.requester_email === user?.email;
         if (isOwner) return false;
@@ -63,9 +63,9 @@ export function Sidebar({ isCollapsed, onToggle }) {
   });
 
   const { data: leavePending } = useQuery({
-    queryKey: ['sidebar-pending-leaves'],
+    queryKey: ['pending-leaves'],
     queryFn: async () => {
-      const res = await leaveApi.listRequests();
+      const res = await leaveApi.listRequests({ page_size: 100 });
       return res.results?.filter(r => {
         const isOwner = r.requester_name === user?.first_name + ' ' + (user?.last_name || '') || r.requester_name === user?.username;
         if (isOwner) return false;
@@ -109,7 +109,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
       to: '/team',
       label: 'Team Management',
       icon: Users,
-      allowed: [ROLES.CEO, ROLES.ADMIN],
+      allowed: [ROLES.CEO, ROLES.ADMIN, ROLES.HR],
       allowHR: true
     },
   ];
@@ -285,26 +285,8 @@ export function Sidebar({ isCollapsed, onToggle }) {
         {/* ──────────────────────────────────────────────────────── */}
       </nav>
 
-      {/* Bottom User profile card & Logout */}
-      <div className={`p-4 border-t border-base-content/5 space-y-3 flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
-        <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'gap-3'} px-2 py-1 w-full`}>
-          <div className="avatar placeholder shrink-0">
-            <div className="bg-primary/10 text-primary rounded-lg w-10 h-10 border border-primary/20 flex items-center justify-center font-bold text-sm uppercase">
-              {user?.username?.substring(0, 2)}
-            </div>
-          </div>
-          {!isCollapsed && (
-            <div className="overflow-hidden">
-              <p className="text-sm font-bold text-base-content truncate">
-                {user?.first_name || user?.username}
-              </p>
-              <p className="text-[10px] text-base-content/40 font-semibold truncate uppercase tracking-wider">
-                {roleDisplayOrRole(user)}
-              </p>
-            </div>
-          )}
-        </div>
-
+      {/* Bottom Logout */}
+      <div className={`p-4 border-t border-base-content/5 flex flex-col ${isCollapsed ? 'items-center' : ''}`}>
         <button
           onClick={logout}
           className={`btn btn-ghost btn-sm rounded-lg text-error hover:bg-error/10 hover:text-error flex items-center justify-center gap-2 ${
@@ -318,8 +300,4 @@ export function Sidebar({ isCollapsed, onToggle }) {
       </div>
     </aside>
   );
-}
-
-function roleDisplayOrRole(user) {
-  return user?.profile?.role_display || user?.profile?.role || user?.role;
 }

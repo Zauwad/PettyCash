@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import gsap from 'gsap';
 import { LogIn } from 'lucide-react';
 import { Spotlight } from '@/shared/components/ui/Spotlight';
+import { ToggleTheme } from '@/components/lightswind/toggle-theme';
 
 // Client-side form validation rules
 const loginSchema = z.object({
@@ -75,6 +76,13 @@ export function LoginForm() {
       ref={formRef} 
       className="min-h-screen w-full flex items-center justify-center bg-base-100 px-4 relative overflow-hidden"
     >
+      {/* Theme Toggle Button */}
+      <div className="absolute top-4 right-4 z-50">
+        <ToggleTheme 
+          animationType="swipe-left" 
+          className="btn btn-ghost btn-circle text-base-content" 
+        />
+      </div>
       {/* Aceternity Grid Background */}
       <div className="absolute inset-0 bg-grid-aceternity pointer-events-none" />
       

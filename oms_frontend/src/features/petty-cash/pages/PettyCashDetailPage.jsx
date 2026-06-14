@@ -70,6 +70,13 @@ export function PettyCashDetailPage() {
     queryKey: ['petty-cash-detail', uuid],
   };
 
+  const invalidatePettyCash = () => {
+    queryClient.invalidateQueries(queryParams);
+    ['pending-petty-cash', 'petty-cash-list', 'analytics-summary', 'analytics-spending-trends', 'analytics-burn-rate', 'dashboard-petty-cash', 'dashboard-activities'].forEach(key => {
+      queryClient.invalidateQueries({ queryKey: [key] });
+    });
+  };
+
   // Pre-fill states when request is loaded
   useEffect(() => {
     if (request) {
@@ -86,7 +93,7 @@ export function PettyCashDetailPage() {
     mutationFn: () => pettyCashApi.submit(uuid),
     onSuccess: () => {
       toast.success('Requisition submitted for approval!');
-      queryClient.invalidateQueries(queryParams);
+      invalidatePettyCash();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to submit request.');
@@ -100,7 +107,7 @@ export function PettyCashDetailPage() {
       toast.success('Request approved successfully!');
       setShowApproveModal(false);
       setApproveNote('');
-      queryClient.invalidateQueries(queryParams);
+      invalidatePettyCash();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to approve request.');
@@ -114,7 +121,7 @@ export function PettyCashDetailPage() {
       toast.success('Request rejected.');
       setShowRejectModal(false);
       setRejectionReason('');
-      queryClient.invalidateQueries(queryParams);
+      invalidatePettyCash();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to reject request.');
@@ -126,7 +133,7 @@ export function PettyCashDetailPage() {
     mutationFn: (data) => pettyCashApi.resubmit(uuid, data),
     onSuccess: () => {
       toast.success('Voucher resubmitted directly to CEO!');
-      queryClient.invalidateQueries(queryParams);
+      invalidatePettyCash();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to resubmit request.');
@@ -138,7 +145,7 @@ export function PettyCashDetailPage() {
     mutationFn: () => pettyCashApi.amend(uuid),
     onSuccess: () => {
       toast.success('Requisition returned to draft.');
-      queryClient.invalidateQueries(queryParams);
+      invalidatePettyCash();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to amend request.');
@@ -150,7 +157,7 @@ export function PettyCashDetailPage() {
     mutationFn: () => pettyCashApi.cancel(uuid),
     onSuccess: () => {
       toast.success('Requisition cancelled.');
-      queryClient.invalidateQueries(queryParams);
+      invalidatePettyCash();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to cancel request.');
@@ -166,8 +173,7 @@ export function PettyCashDetailPage() {
       setDisburseAmount('');
       setRefNumber('');
       setDisburseNotes('');
-      queryClient.invalidateQueries(queryParams);
-      queryClient.invalidateQueries({ queryKey: ['petty-cash-list'] });
+      invalidatePettyCash();
     },
     onError: (err) => {
       toast.error(err.response?.data?.detail || 'Failed to process disbursement.');

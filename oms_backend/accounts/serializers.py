@@ -19,7 +19,7 @@ class DepartmentSummarySerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Department
-        fields = ['id', 'name', 'monthly_budget', 'tl_approval_limit']
+        fields = ['id', 'name', 'monthly_budget', 'budget_spent_this_month', 'budget_frequency', 'tl_approval_limit']
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
@@ -129,8 +129,11 @@ class UserCreateSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request:
             creator_profile = getattr(request.user, 'profile', None)
-            if creator_profile and creator_profile.role != UserRole.ADMIN and value == UserRole.ADMIN:
-                raise serializers.ValidationError("Only Global Admins can assign the Global Admin role.")
+            if creator_profile and creator_profile.role != UserRole.ADMIN:
+                if value == UserRole.ADMIN:
+                    raise serializers.ValidationError("Only Global Admins can assign the Global Admin role.")
+                if value == UserRole.CEO:
+                    raise serializers.ValidationError("Only Global Admins can assign the CEO role.")
         return value
 
     def create(self, validated_data):

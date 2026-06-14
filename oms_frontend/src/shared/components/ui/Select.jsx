@@ -26,7 +26,7 @@ export function Select({ value, onChange, options = [], placeholder = 'Select an
   };
 
   return (
-    <div ref={containerRef} className={cn("relative w-full", className)}>
+    <div ref={containerRef} className={cn("relative w-full", isOpen && "z-30", className)}>
       <button
         type="button"
         disabled={disabled}
@@ -40,7 +40,7 @@ export function Select({ value, onChange, options = [], placeholder = 'Select an
       </button>
 
       {isOpen && (
-        <div className="absolute z-50 mt-1.5 max-h-60 w-full overflow-auto rounded-xl border border-base-content/10 bg-base-200/95 p-1 text-base-content shadow-lg ring-1 ring-black/5 focus:outline-none backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-100">
+        <div className="absolute z-50 mt-1.5 max-h-60 w-full overflow-auto rounded-xl border border-base-content/10 bg-base-200 p-1 text-base-content shadow-lg ring-1 ring-black/5 focus:outline-none backdrop-blur-md animate-in fade-in slide-in-from-top-1 duration-100">
           {options.length === 0 ? (
             <div className="relative cursor-default select-none px-4 py-2.5 text-xs text-base-content/40">
               No options available

@@ -27,8 +27,17 @@ export function TeamPage() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDept, setSelectedDept] = useState('ALL');
+  const [activeTab, setActiveTab] = useState('users'); // 'users' | 'departments'
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditDeptModalOpen, setIsEditDeptModalOpen] = useState(false);
+  const [selectedDeptData, setSelectedDeptData] = useState(null);
+  const [deptFormData, setDeptFormData] = useState({
+    monthly_budget: '',
+    budget_frequency: 'MONTHLY',
+    tl_approval_limit: ''
+  });
+
   const [formData, setFormData] = useState({
     first_name: '',
     last_name: '',
@@ -119,7 +128,7 @@ export function TeamPage() {
 
   const isActorAdmin = currentUser?.profile?.role === ROLES.ADMIN;
   const isActorCEO = currentUser?.profile?.role === ROLES.CEO;
-  const isActorHR = currentUser?.profile?.department?.name?.toUpperCase().includes('HR');
+  const isActorHR = currentUser?.profile?.role === ROLES.HR || currentUser?.profile?.department?.name?.toUpperCase().includes('HR');
   const isPrivilegedUser = isActorAdmin || isActorCEO || isActorHR;
 
   // Role change mutation
@@ -161,6 +170,42 @@ export function TeamPage() {
     changeRoleMutation.mutate({ userId, role: newRole });
   };
 
+  const updateDeptMutation = useMutation({
+    mutationFn: ({ id, data }) => teamApi.updateDepartment(id, data),
+    onSuccess: (updatedDept) => {
+      queryClient.invalidateQueries(['organization-departments']);
+      queryClient.invalidateQueries(['organization-users']);
+      toast.success(`Department ${updatedDept.name} updated successfully!`);
+      setIsEditDeptModalOpen(false);
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.detail || 'Failed to update department budget.');
+    }
+  });
+
+  const handleEditDeptClick = (dept) => {
+    setSelectedDeptData(dept);
+    setDeptFormData({
+      monthly_budget: parseFloat(dept.monthly_budget),
+      budget_frequency: dept.budget_frequency || 'MONTHLY',
+      tl_approval_limit: parseFloat(dept.tl_approval_limit)
+    });
+    setIsEditDeptModalOpen(true);
+  };
+
+  const handleUpdateDeptSubmit = (e) => {
+    e.preventDefault();
+    if (!selectedDeptData) return;
+    updateDeptMutation.mutate({
+      id: selectedDeptData.id,
+      data: {
+        monthly_budget: parseFloat(deptFormData.monthly_budget),
+        budget_frequency: deptFormData.budget_frequency,
+        tl_approval_limit: parseFloat(deptFormData.tl_approval_limit)
+      }
+    });
+  };
+
 
 
   return (
@@ -193,156 +238,264 @@ export function TeamPage() {
           </div>
         </div>
 
-        {/* Filter Toolbar */}
-        <div className="flex flex-col md:flex-row gap-4 items-center bg-base-200/40 border border-base-content/5 p-4 rounded-2xl backdrop-blur-md">
-          <div className="relative w-full md:flex-1">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
-            <input
-              type="text"
-              placeholder="Search by name, email, or employee serial ID..."
-              className="input input-bordered w-full pl-11 rounded-xl bg-base-100/45 focus:bg-base-100 border-base-content/10 text-xs h-10"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
-          </div>
-
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <Building2 className="w-4 h-4 text-base-content/40 shrink-0" />
-            <Select
-              value={selectedDept}
-              onChange={setSelectedDept}
-              options={departments.map(dept => ({
-                value: dept,
-                label: dept === 'ALL' ? 'All Departments' : dept
-              }))}
-              className="w-full md:w-56"
-            />
-          </div>
+        {/* Tab Selection */}
+        <div className="tabs tabs-boxed bg-base-300/30 p-1 rounded-xl w-fit flex gap-1 border border-base-content/5">
+          <button 
+            type="button"
+            onClick={() => setActiveTab('users')}
+            className={`tab rounded-lg text-xs font-bold px-6 py-2 transition-all ${
+              activeTab === 'users' 
+                ? 'bg-primary text-primary-content shadow-sm' 
+                : 'text-base-content/60 hover:text-base-content'
+            }`}
+          >
+            Employee Directory
+          </button>
+          <button 
+            type="button"
+            onClick={() => setActiveTab('departments')}
+            className={`tab rounded-lg text-xs font-bold px-6 py-2 transition-all ${
+              activeTab === 'departments' 
+                ? 'bg-primary text-primary-content shadow-sm' 
+                : 'text-base-content/60 hover:text-base-content'
+            }`}
+          >
+            Departments & Budgets
+          </button>
         </div>
 
-        {/* Employees Table Container */}
-        {isLoading ? (
-          <div className="space-y-4">
-            <LoadingSkeleton className="h-16 rounded-xl" />
-            <LoadingSkeleton className="h-16 rounded-xl" />
-            <LoadingSkeleton className="h-16 rounded-xl" />
+        {/* Filter Toolbar - ONLY for users */}
+        {activeTab === 'users' && (
+          <div className="flex flex-col md:flex-row gap-4 items-center bg-base-200/40 border border-base-content/5 p-4 rounded-2xl backdrop-blur-md animate-fade-in">
+            <div className="relative w-full md:flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-base-content/40" />
+              <input
+                type="text"
+                placeholder="Search by name, email, or employee serial ID..."
+                className="input input-bordered w-full pl-11 rounded-xl bg-base-100/45 focus:bg-base-100 border-base-content/10 text-xs h-10"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <div className="flex items-center gap-2 w-full md:w-auto">
+              <Building2 className="w-4 h-4 text-base-content/40 shrink-0" />
+              <Select
+                value={selectedDept}
+                onChange={setSelectedDept}
+                options={departments.map(dept => ({
+                  value: dept,
+                  label: dept === 'ALL' ? 'All Departments' : dept
+                }))}
+                className="w-full md:w-56"
+              />
+            </div>
           </div>
-        ) : filteredUsers.length === 0 ? (
-          <div className="glass-panel p-12 text-center rounded-2xl space-y-3 shadow-md">
-            <Users className="w-12 h-12 text-base-content/25 mx-auto" />
-            <h3 className="text-lg font-bold Outfit">No employees found</h3>
-            <p className="text-xs text-base-content/50 max-w-sm mx-auto">
-              We couldn't find any team members matching your search query or selected department filter.
-            </p>
-          </div>
-        ) : (
-          <div className="glass-panel rounded-2xl shadow-xl overflow-hidden border border-base-content/5">
+        )}
+
+        {/* USER LIST VIEW */}
+        {activeTab === 'users' && (
+          isLoading ? (
+            <div className="space-y-4">
+              <LoadingSkeleton className="h-16 rounded-xl" />
+              <LoadingSkeleton className="h-16 rounded-xl" />
+              <LoadingSkeleton className="h-16 rounded-xl" />
+            </div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="glass-panel p-12 text-center rounded-2xl space-y-3 shadow-md animate-fade-in">
+              <Users className="w-12 h-12 text-base-content/25 mx-auto" />
+              <h3 className="text-lg font-bold Outfit">No employees found</h3>
+              <p className="text-xs text-base-content/50 max-w-sm mx-auto">
+                We couldn't find any team members matching your search query or selected department filter.
+              </p>
+            </div>
+          ) : (
+            <div className="glass-panel rounded-2xl shadow-xl overflow-hidden border border-base-content/5 animate-fade-in">
+              <div className="overflow-x-auto">
+                <table className="table w-full text-xs">
+                  <thead>
+                    <tr className="bg-base-300/40 text-base-content/70 font-extrabold uppercase tracking-wider text-[10px] border-b border-base-content/5">
+                      <th className="py-4 pl-6">Employee Details</th>
+                      <th>Employee ID</th>
+                      <th>Department</th>
+                      <th>Clearance Role</th>
+                      <th className="text-right pr-6">Manage Access</th>
+                    </tr>
+                  </thead>
+                  <tbody ref={listRef}>
+                    {filteredUsers.map((emp) => {
+                      const isSelf = emp.id === currentUser?.id;
+                      const empName = emp.first_name ? `${emp.first_name} ${emp.last_name || ''}` : emp.username;
+                      const currentRole = emp.profile?.role;
+                      
+                      // Decide if current user can edit this employee's role (only admins can modify CEO or ADMIN accounts)
+                      const canEdit = !isSelf && ((currentRole !== ROLES.ADMIN && currentRole !== ROLES.CEO) || isActorAdmin);
+
+                      return (
+                        <tr key={emp.id} className="employee-row hover:bg-base-200/35 transition-colors border-b border-base-content/5">
+                          <td className="py-4 pl-6">
+                            <div className="flex items-center gap-3">
+                              {emp.profile?.avatar_url ? (
+                                <div className="avatar">
+                                  <div className="rounded-xl w-10 h-10 border border-base-content/10 overflow-hidden flex items-center justify-center bg-base-100">
+                                    <img src={emp.profile.avatar_url} alt={empName} className="object-cover w-full h-full" />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="avatar">
+                                  <div className="bg-primary/10 text-primary border border-primary/20 rounded-xl w-10 h-10 flex items-center justify-center">
+                                    <User className="w-5 h-5" />
+                                  </div>
+                                </div>
+                              )}
+                              <div>
+                                <p className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
+                                  {empName}
+                                  {isSelf && (
+                                    <Badge variant="default" className="text-[10px] leading-none uppercase tracking-wider font-bold px-1.5 py-0.5 rounded">You</Badge>
+                                  )}
+                                </p>
+                                <p className="text-[10px] text-base-content/40 font-semibold">{emp.email}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="font-bold text-base-content/75">
+                            {emp.profile?.employee_id || 'N/A'}
+                          </td>
+                          <td>
+                            <Badge variant="ghost" className="font-bold rounded-lg px-2.5 py-1 border border-base-content/10 bg-base-200/50">
+                              {emp.profile?.department?.name || 'Unassigned'}
+                            </Badge>
+                          </td>
+                          <td>
+                            <Badge 
+                              variant={
+                                currentRole === ROLES.ADMIN ? 'destructive' :
+                                currentRole === ROLES.CEO ? 'secondary' :
+                                currentRole === ROLES.TEAM_LEAD ? 'default' :
+                                'ghost'
+                              }
+                              className="font-bold uppercase tracking-wider rounded-lg px-2.5 py-1"
+                            >
+                              {emp.profile?.role_display || currentRole}
+                            </Badge>
+                          </td>
+                          <td className="text-right pr-6">
+                            {canEdit ? (
+                              <div className="flex items-center justify-end gap-2 ">
+                                {changeRoleMutation.isPending && changeRoleMutation.variables?.userId === emp.id ? (
+                                  <Spinner className="w-4 h-4 text-primary animate-spin" />
+                                ) : (
+                                  <UserCog className="w-4 h-4 text-base-content/30" />
+                                )}
+                                <Select
+                                  value={currentRole}
+                                  onChange={(val) => handleRoleChange(emp.id, val)}
+                                  disabled={changeRoleMutation.isPending}
+                                  options={[
+                                    { value: ROLES.EMPLOYEE, label: 'Employee' },
+                                    { value: ROLES.TEAM_LEAD, label: 'Team Lead' },
+                                    { value: ROLES.GENERAL_MANAGER, label: 'General Manager' },
+                                    { value: ROLES.HR, label: 'HR' },
+                                    ...(isActorAdmin ? [
+                                      { value: ROLES.CEO, label: 'CEO' },
+                                      { value: ROLES.ADMIN, label: 'Global Admin' }
+                                    ] : []),
+                                  ]}
+                                  className="w-36 [&>button]:h-8 [&>button]:py-1 [&>button]:rounded-lg [&>button]:text-xs"
+                                />
+                              </div>
+                            ) : (
+                              <div className="flex items-center justify-end gap-1.5 text-base-content/40 font-medium select-none">
+                                {isSelf ? (
+                                  <>
+                                    <UserCheck className="w-4 h-4 text-primary" />
+                                    <span>Active Self Session</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <ShieldAlert className="w-4 h-4 text-error" />
+                                    <span>Restricted Access</span>
+                                  </>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )
+        )}
+
+        {/* DEPARTMENT LIST VIEW */}
+        {activeTab === 'departments' && (
+          <div className="glass-panel rounded-2xl shadow-xl overflow-hidden border border-base-content/5 animate-fade-in">
             <div className="overflow-x-auto">
               <table className="table w-full text-xs">
                 <thead>
                   <tr className="bg-base-300/40 text-base-content/70 font-extrabold uppercase tracking-wider text-[10px] border-b border-base-content/5">
-                    <th className="py-4 pl-6">Employee Details</th>
-                    <th>Employee ID</th>
-                    <th>Department</th>
-                    <th>Clearance Role</th>
-                    <th className="text-right pr-6">Manage Access</th>
+                    <th className="py-4 pl-6">Department Name</th>
+                    <th>Budget Amount</th>
+                    <th>Cycle Frequency</th>
+                    <th>Spent (Current Cycle)</th>
+                    <th>TL Approval Limit</th>
+                    {isPrivilegedUser && (isActorCEO || isActorAdmin) && (
+                      <th className="text-right pr-6">Actions</th>
+                    )}
                   </tr>
                 </thead>
-                <tbody ref={listRef}>
-                  {filteredUsers.map((emp) => {
-                    const isSelf = emp.id === currentUser?.id;
-                    const empName = emp.first_name ? `${emp.first_name} ${emp.last_name || ''}` : emp.username;
-                    const currentRole = emp.profile?.role;
+                <tbody>
+                  {orgDepts.map((dept) => {
+                    const spentVal = parseFloat(dept.budget_spent_this_month || 0);
+                    const budgetVal = parseFloat(dept.monthly_budget || 0);
+                    const pct = budgetVal > 0 ? Math.round((spentVal / budgetVal) * 100) : 0;
                     
-                    // Decide if current user can edit this employee's role
-                    const canEdit = !isSelf && (currentRole !== ROLES.ADMIN || isActorAdmin);
-
                     return (
-                      <tr key={emp.id} className="employee-row hover:bg-base-200/35 transition-colors border-b border-base-content/5">
-                        <td className="py-4 pl-6">
-                          <div className="flex items-center gap-3">
-                            {emp.profile?.avatar_url ? (
-                              <div className="avatar">
-                                <div className="rounded-xl w-10 h-10 border border-base-content/10 overflow-hidden flex items-center justify-center bg-base-100">
-                                  <img src={emp.profile.avatar_url} alt={empName} className="object-cover w-full h-full" />
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="avatar">
-                                <div className="bg-primary/10 text-primary border border-primary/20 rounded-xl w-10 h-10 flex items-center justify-center">
-                                  <User className="w-5 h-5" />
-                                </div>
-                              </div>
-                            )}
-                            <div>
-                              <p className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
-                                {empName}
-                                {isSelf && (
-                                  <Badge variant="default" className="text-[10px] leading-none uppercase tracking-wider font-bold px-1.5 py-0.5 rounded">You</Badge>
-                                )}
-                              </p>
-                              <p className="text-[10px] text-base-content/40 font-semibold">{emp.email}</p>
+                      <tr key={dept.id} className="hover:bg-base-200/35 transition-colors border-b border-base-content/5">
+                        <td className="py-4 pl-6 font-extrabold text-sm text-base-content">
+                          {dept.name}
+                        </td>
+                        <td className="font-extrabold text-base-content/85">
+                          ৳{budgetVal.toLocaleString()}
+                        </td>
+                        <td>
+                          <Badge variant="ghost" className="font-bold uppercase tracking-wider rounded-lg px-2.5 py-1 border border-base-content/10 bg-base-200/50">
+                            {dept.budget_frequency || 'MONTHLY'}
+                          </Badge>
+                        </td>
+                        <td>
+                          <div className="flex flex-col gap-1.5 max-w-[150px]">
+                            <div className="flex justify-between text-[10px] font-bold text-base-content/60">
+                              <span>৳{spentVal.toLocaleString()}</span>
+                              <span>{pct}%</span>
                             </div>
+                            <progress 
+                              className={`progress w-full h-1.5 rounded-full ${
+                                pct >= 90 ? 'progress-error' : pct >= 70 ? 'progress-warning' : 'progress-primary'
+                              }`} 
+                              value={spentVal} 
+                              max={budgetVal > 0 ? budgetVal : 1}
+                            />
                           </div>
                         </td>
-                        <td className="font-bold text-base-content/75">
-                          {emp.profile?.employee_id || 'N/A'}
+                        <td className="font-semibold text-base-content/70">
+                          ৳{parseFloat(dept.tl_approval_limit || 0).toLocaleString()}
                         </td>
-                        <td>
-                          <Badge variant="ghost" className="font-bold rounded-lg px-2.5 py-1 border border-base-content/10 bg-base-200/50">
-                            {emp.profile?.department?.name || 'Unassigned'}
-                          </Badge>
-                        </td>
-                        <td>
-                          <Badge 
-                            variant={
-                              currentRole === ROLES.ADMIN ? 'destructive' :
-                              currentRole === ROLES.CEO ? 'secondary' :
-                              currentRole === ROLES.TEAM_LEAD ? 'default' :
-                              'ghost'
-                            }
-                            className="font-bold uppercase tracking-wider rounded-lg px-2.5 py-1"
-                          >
-                            {emp.profile?.role_display || currentRole}
-                          </Badge>
-                        </td>
-                        <td className="text-right pr-6">
-                          {canEdit ? (
-                            <div className="flex items-center justify-end gap-2">
-                              {changeRoleMutation.isPending && changeRoleMutation.variables?.userId === emp.id ? (
-                                <Spinner className="w-4 h-4 text-primary animate-spin" />
-                              ) : (
-                                <UserCog className="w-4 h-4 text-base-content/30" />
-                              )}
-                              <Select
-                                value={currentRole}
-                                onChange={(val) => handleRoleChange(emp.id, val)}
-                                disabled={changeRoleMutation.isPending}
-                                options={[
-                                  { value: ROLES.EMPLOYEE, label: 'Employee' },
-                                  { value: ROLES.TEAM_LEAD, label: 'Team Lead' },
-                                  { value: ROLES.CEO, label: 'CEO' },
-                                  ...(isActorAdmin ? [{ value: ROLES.ADMIN, label: 'Global Admin' }] : []),
-                                ]}
-                                className="w-36 [&>button]:h-8 [&>button]:py-1 [&>button]:rounded-lg [&>button]:text-xs"
-                              />
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1.5 text-base-content/40 font-medium select-none">
-                              {isSelf ? (
-                                <>
-                                  <UserCheck className="w-4 h-4 text-primary" />
-                                  <span>Active Self Session</span>
-                                </>
-                              ) : (
-                                <>
-                                  <ShieldAlert className="w-4 h-4 text-error" />
-                                  <span>Restricted Access</span>
-                                </>
-                              )}
-                            </div>
-                          )}
-                        </td>
+                        {isPrivilegedUser && (isActorCEO || isActorAdmin) && (
+                          <td className="text-right pr-6">
+                            <button
+                              type="button"
+                              onClick={() => handleEditDeptClick(dept)}
+                              className="btn btn-ghost btn-xs text-primary font-bold hover:bg-primary/5 rounded-md"
+                            >
+                              Edit Budget
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     );
                   })}
@@ -351,6 +504,7 @@ export function TeamPage() {
             </div>
           </div>
         )}
+
         {/* Create User Modal */}
         {isCreateModalOpen && createPortal(
           <div className="modal modal-open">
@@ -480,8 +634,12 @@ export function TeamPage() {
                       options={[
                         { value: ROLES.EMPLOYEE, label: 'Employee' },
                         { value: ROLES.TEAM_LEAD, label: 'Team Lead' },
-                        { value: ROLES.CEO, label: 'CEO' },
-                        ...(isActorAdmin ? [{ value: ROLES.ADMIN, label: 'Global Admin' }] : [])
+                        { value: ROLES.GENERAL_MANAGER, label: 'General Manager' },
+                        { value: ROLES.HR, label: 'HR' },
+                        ...(isActorAdmin ? [
+                          { value: ROLES.CEO, label: 'CEO' },
+                          { value: ROLES.ADMIN, label: 'Global Admin' }
+                        ] : [])
                       ]}
                       className="w-full [&>button]:h-9 [&>button]:py-1 [&>button]:px-3 [&>button]:rounded-xl [&>button]:text-xs [&>button]:bg-base-200/50 [&>button]:border-base-content/15"
                     />
@@ -528,9 +686,97 @@ export function TeamPage() {
           </div>,
           document.body
         )}
+
+        {/* Edit Department Budget Modal */}
+        {isEditDeptModalOpen && createPortal(
+          <div className="modal modal-open animate-fade-in">
+            <div className="modal-box rounded-2xl border border-base-content/10 bg-base-100 shadow-2xl max-w-sm">
+              <h3 className="font-bold text-lg Outfit mb-4">Edit Department Budget</h3>
+              
+              <form onSubmit={handleUpdateDeptSubmit} className="space-y-4 text-xs">
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-bold text-base-content/75">Department Name</span>
+                  </label>
+                  <input
+                    type="text"
+                    disabled
+                    className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50 cursor-not-allowed text-base-content/50"
+                    value={selectedDeptData?.name || ''}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-bold text-base-content/75">Budget Amount (৳)</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50 focus:bg-base-100"
+                    value={deptFormData.monthly_budget}
+                    onChange={(e) => setDeptFormData({ ...deptFormData, monthly_budget: e.target.value })}
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-bold text-base-content/75">Budget Cycle Frequency</span>
+                  </label>
+                  <Select
+                    value={deptFormData.budget_frequency}
+                    onChange={(val) => setDeptFormData({ ...deptFormData, budget_frequency: val })}
+                    options={[
+                      { value: 'MONTHLY', label: 'Monthly' },
+                      { value: 'QUARTERLY', label: 'Quarterly' },
+                      { value: 'YEARLY', label: 'Yearly' },
+                    ]}
+                    className="w-full [&>button]:h-9 [&>button]:py-1 [&>button]:px-3 [&>button]:rounded-xl [&>button]:text-xs [&>button]:bg-base-200/50 [&>button]:border-base-content/15"
+                  />
+                </div>
+
+                <div className="form-control">
+                  <label className="label py-1">
+                    <span className="label-text font-bold text-base-content/75">TL Approval Threshold Limit (৳)</span>
+                  </label>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.01"
+                    className="input input-bordered rounded-xl w-full text-xs h-9 bg-base-200/50 focus:bg-base-100"
+                    value={deptFormData.tl_approval_limit}
+                    onChange={(e) => setDeptFormData({ ...deptFormData, tl_approval_limit: e.target.value })}
+                  />
+                </div>
+
+                <div className="modal-action gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditDeptModalOpen(false)}
+                    className="btn btn-ghost btn-sm rounded-xl text-xs"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={updateDeptMutation.isPending}
+                    className="btn btn-primary btn-sm rounded-xl text-xs font-bold"
+                  >
+                    {updateDeptMutation.isPending ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     </PageTransition>
   );
 }
 
 export default TeamPage;
+

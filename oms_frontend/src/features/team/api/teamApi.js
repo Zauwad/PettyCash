@@ -35,5 +35,15 @@ export const teamApi = {
   async getDepartments() {
     const response = await axiosInstance.get('/api/departments/');
     return response.data;
+  },
+
+  /**
+   * Updates department details (budget, limit, frequency).
+   * @param {number} deptId - Department ID
+   * @param {object} data - Data to update (monthly_budget, budget_frequency, etc.)
+   */
+  async updateDepartment(deptId, data) {
+    const response = await axiosInstance.patch(`/api/departments/${deptId}/`, data);
+    return response.data;
   }
 };

@@ -26,7 +26,9 @@ import {
   Clock,
   Share2,
   CalendarDays,
-  X
+  X,
+  Users,
+  CheckCircle2
 } from 'lucide-react';
 
 const leaveRequestSchema = z.object({
@@ -69,6 +71,12 @@ export function LeaveListPage() {
   const [workingDays, setWorkingDays] = useState(0);
   const [isCalculatingDays, setIsCalculatingDays] = useState(false);
   const [selectedLeave, setSelectedLeave] = useState(null);
+
+  // Overlapping leaves checking state
+  const [overlappingLeaves, setOverlappingLeaves] = useState([]);
+  const [isCheckingOverlaps, setIsCheckingOverlaps] = useState(false);
+
+
 
   // Filter parameters
   const filterParams = { page };
@@ -170,6 +178,28 @@ export function LeaveListPage() {
     }
   }, [watchedIsHalfDay, watchedStartDate, setValue]);
 
+  // Trigger overlapping leaves check
+  useEffect(() => {
+    async function checkOverlaps() {
+      if (!watchedStartDate || !watchedEndDate || watchedStartDate > watchedEndDate) {
+        setOverlappingLeaves([]);
+        return;
+      }
+
+      setIsCheckingOverlaps(true);
+      try {
+        const res = await leaveApi.getOverlappingLeaves(watchedStartDate, watchedEndDate);
+        setOverlappingLeaves(res);
+      } catch (_err) {
+        setOverlappingLeaves([]);
+      } finally {
+        setIsCheckingOverlaps(false);
+      }
+    }
+
+    checkOverlaps();
+  }, [watchedStartDate, watchedEndDate]);
+
   // Mutation: Submit Leave Request
   const createMutation = useMutation({
     mutationFn: (data) => leaveApi.createRequest(data),
@@ -191,6 +221,9 @@ export function LeaveListPage() {
       queryClient.invalidateQueries({ queryKey: ['leave-requests-list'] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances-list'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-leave-balances'] });
+      ['pending-leaves', 'analytics-summary', 'dashboard-upcoming-absences', 'dashboard-leave-requests', 'dashboard-activities'].forEach(key => {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      });
     },
     onError: (err) => {
       const msg = err.response?.data?.detail || 
@@ -663,6 +696,73 @@ export function LeaveListPage() {
                     </span>
                   </div>
                 </div>
+              </div>
+
+              {/* Overlapping Leaves Card */}
+              <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4 relative overflow-hidden">
+                <h3 className="text-base font-bold Outfit flex items-center gap-2">
+                  <Users className="w-5 h-5 text-secondary" />
+                  Department Coverage Check
+                </h3>
+
+                {!watchedStartDate || !watchedEndDate ? (
+                  <div className="alert alert-info rounded-xl p-3 flex items-start gap-2 text-xs bg-info/10 text-info border border-info/20">
+                    <Info className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>
+                      Please select a start date and end date to check for overlapping department leaves.
+                    </span>
+                  </div>
+                ) : watchedStartDate > watchedEndDate ? (
+                  <div className="alert alert-error rounded-xl p-3 flex items-start gap-2 text-xs bg-error/10 text-error border border-error/20">
+                    <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-error" />
+                    <span>
+                      Start date cannot be after end date.
+                    </span>
+                  </div>
+                ) : isCheckingOverlaps ? (
+                  <div className="flex flex-col items-center justify-center py-6 text-xs text-base-content/40 font-semibold gap-2">
+                    <span className="loading loading-spinner loading-sm text-secondary"></span>
+                    <span>Checking for overlaps...</span>
+                  </div>
+                ) : overlappingLeaves.length > 0 ? (
+                  <div className="space-y-3">
+                    <div className="alert alert-warning rounded-xl p-3 flex items-start gap-2 text-xs bg-warning/10 text-warning border border-warning/20">
+                      <AlertCircle className="w-4 h-4 mt-0.5 shrink-0 text-warning" />
+                      <span>
+                        <strong>Warning:</strong> {overlappingLeaves.length} {overlappingLeaves.length === 1 ? 'colleague has' : 'colleagues have'} overlapping leaves.
+                      </span>
+                    </div>
+                    
+                    <div className="max-h-48 overflow-y-auto space-y-2.5 pr-1">
+                      {overlappingLeaves.map((leaf) => (
+                        <div key={leaf.uuid} className="p-3 bg-base-100/40 border border-base-content/5 rounded-xl space-y-1.5 hover:bg-base-100/70 transition-colors">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <h4 className="font-extrabold text-xs text-base-content">{leaf.employee_name}</h4>
+                              <p className="text-[10px] text-base-content/40 font-bold uppercase tracking-wide">{leaf.department_name}</p>
+                            </div>
+                            <span className={`badge ${
+                              leaf.state === 'approved' ? 'badge-success bg-success/20 text-success' : 'badge-warning bg-warning/20 text-warning'
+                            } font-bold text-[9px] uppercase tracking-wider px-1.5 py-0.5 h-4 rounded-md border-0`}>
+                              {leaf.state === 'approved' ? 'Approved' : 'Pending'}
+                            </span>
+                          </div>
+                          <div className="flex justify-between items-center text-[10px] text-base-content/50 font-medium">
+                            <span>{leaf.start_date} → {leaf.end_date}</span>
+                            <span className="font-semibold text-base-content/85">{leaf.working_days_requested} days</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="alert alert-success rounded-xl p-3 flex items-start gap-2 text-xs bg-success/10 text-success border border-success/20">
+                    <CheckCircle2 className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>
+                      <strong>Perfect Coverage!</strong> No other colleagues are out during this period.
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
           </div>
