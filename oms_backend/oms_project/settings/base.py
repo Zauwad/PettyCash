@@ -92,9 +92,18 @@ ASGI_APPLICATION = 'oms_project.asgi.application'
 
 # Database Configuration (MySQL / SQLite Fallback on Vercel)
 if 'DATABASE_URL' in os.environ:
+    raw_url = os.environ['DATABASE_URL']
+    # Strip ?ssl-mode=REQUIRED — django-environ can't parse this MySQL-specific param
+    # We handle SSL separately below
+    clean_url = raw_url.split('?')[0] if '?' in raw_url else raw_url
     DATABASES = {
-        'default': env.db('DATABASE_URL')
+        'default': environ.Env.db_url_config(clean_url)
     }
+    # If it's a MySQL URL (Aiven), add SSL options
+    if 'mysql' in raw_url and 'ssl-mode=REQUIRED' in raw_url:
+        DATABASES['default']['OPTIONS'] = {
+            'ssl': {'check_hostname': False},
+        }
 elif os.environ.get('VERCEL') == '1':
     DATABASES = {
         'default': {
@@ -177,9 +186,10 @@ SIMPLE_JWT = {
 # CORS Configuration
 CORS_ALLOW_ALL_ORIGINS = True  # For dev, we will restrict in production settings
 
-# Celery settings
-CELERY_BROKER_URL = env('CELERY_BROKER_URL')
-CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND')
+# Celery settings (disabled for serverless deployment)
+# Background tasks are handled via threading (core/tasks.py)
+CELERY_BROKER_URL = env('CELERY_BROKER_URL', default='redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = env('CELERY_RESULT_BACKEND', default='redis://localhost:6379/0')
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
