@@ -119,4 +119,15 @@ export const pettyCashApi = {
     });
     return response.data;
   },
+
+  /**
+   * Look up market prices for a product from Google Shopping BD via SerpAPI.
+   * Returns BDT-denominated results from Bangladeshi stores.
+   */
+  async priceLookup(query) {
+    const response = await axiosInstance.get(`${API_ENDPOINTS.PETTY_CASH}price-lookup/`, {
+      params: { q: query },
+    });
+    return response.data;
+  },
 };

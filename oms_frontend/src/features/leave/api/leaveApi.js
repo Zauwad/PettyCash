@@ -122,4 +122,20 @@ export const leaveApi = {
     const response = await axiosInstance.get(`${API_ENDPOINTS.LEAVE_REQUESTS}overlapping-leaves/`, { params });
     return response.data;
   },
+
+  /**
+   * Upload attachments for a draft leave request.
+   */
+  async uploadAttachments(uuid, files) {
+    const formData = new FormData();
+    files.forEach((file) => {
+      formData.append('files', file);
+    });
+    const response = await axiosInstance.post(`${API_ENDPOINTS.LEAVE_REQUESTS}${uuid}/attachments/`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
 };

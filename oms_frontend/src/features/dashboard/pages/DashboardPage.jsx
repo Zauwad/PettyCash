@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useThemeStore } from '@/shared/stores/themeStore';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { pettyCashApi } from '@/features/petty-cash/api/pettyCashApi';
 import { leaveApi } from '@/features/leave/api/leaveApi';
 import { analyticsApi } from '@/features/analytics/api/analyticsApi';
@@ -137,21 +137,34 @@ export function DashboardPage() {
     enabled: !isExecutive,
   });
 
-  // Query: Recent audit logs for activity timeline
-  const { data: activities, isLoading: isActivitiesLoading } = useQuery({
+  // Query: Recent audit logs for activity timeline via Infinite Query
+  const {
+    data: infiniteActivities,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    isLoading: isActivitiesLoading,
+  } = useInfiniteQuery({
     queryKey: ['dashboard-activities'],
-    queryFn: () => auditApi.list({ page_size: 100 }),
-    enabled: !!user && ['TEAM_LEAD', 'GENERAL_MANAGER', 'CEO', 'ADMIN'].includes(role),
+    queryFn: ({ pageParam = 1 }) => auditApi.list({ page: pageParam, page_size: 15 }),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage.next) return undefined;
+      return allPages.length + 1;
+    },
+    enabled: !!user && ['TEAM_LEAD', 'GENERAL_MANAGER', 'CEO', 'ADMIN', 'HR'].includes(role),
   });
 
-  const weeklyActivities = (() => {
-    if (!activities?.results) return [];
-    const oneWeekAgo = new Date();
-    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-    return activities.results.filter(
-      (activity) => new Date(activity.created_at) >= oneWeekAgo
-    );
-  })();
+  const allActivities = infiniteActivities?.pages?.flatMap(page => page.results || []) || [];
+
+  const handleScroll = (e) => {
+    const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
+    if (scrollHeight - scrollTop - clientHeight < 50) {
+      if (hasNextPage && !isFetchingNextPage) {
+        fetchNextPage();
+      }
+    }
+  };
 
   const getDhakaGreeting = () => {
     const utc = new Date().getTime() + new Date().getTimezoneOffset() * 60000;
@@ -478,12 +491,16 @@ export function DashboardPage() {
                     <div className="h-10 bg-base-300/40 animate-pulse rounded-xl"></div>
                     <div className="h-10 bg-base-300/40 animate-pulse rounded-xl"></div>
                   </div>
-                ) : weeklyActivities.length > 0 ? (
-                  <div className="flow-root pt-2 max-h-96 overflow-y-auto pr-2 scrollbar-thin">
+                ) : allActivities.length > 0 ? (
+                  <div 
+                    onScroll={handleScroll}
+                    className="flow-root pt-2 max-h-96 overflow-y-auto pr-2 scrollbar-thin"
+                  >
                     <ul className="mb-4">
-                      {weeklyActivities.map((activity, idx) => {
+                      {allActivities.map((activity, idx) => {
                         const getActionLabel = (action) => {
                           const mapping = {
+                            'CREATED': 'created',
                             'SUBMIT': 'submitted',
                             'TL_APPROVE': 'approved (TL)',
                             'GM_APPROVE': 'approved (GM)',
@@ -505,7 +522,7 @@ export function DashboardPage() {
                         return (
                           <li key={activity.id}>
                             <div className="relative pb-6">
-                              {idx !== weeklyActivities.length - 1 && (
+                              {idx !== allActivities.length - 1 && (
                                 <span className="absolute top-4 left-4 -ml-px h-full w-0.5 bg-base-content/10" aria-hidden="true" />
                               )}
                               <div className="relative flex space-x-3 items-start">
@@ -531,10 +548,15 @@ export function DashboardPage() {
                         );
                       })}
                     </ul>
+                    {isFetchingNextPage && (
+                      <div className="flex justify-center py-2">
+                        <span className="loading loading-spinner loading-sm text-secondary"></span>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="text-center py-6 text-xs text-base-content/35 font-semibold">
-                    No activities recorded this week.
+                    No activities recorded.
                   </div>
                 )}
               </div>

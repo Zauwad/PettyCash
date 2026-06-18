@@ -22,3 +22,6 @@ gunicorn>=21.0.0,<23.0.0
 
 # API Documentation
 drf-spectacular>=0.26.0,<0.28.0
+
+# Third-Party API Requests
+requests>=2.31.0,<3.0.0

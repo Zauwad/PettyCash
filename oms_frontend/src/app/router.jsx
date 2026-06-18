@@ -1,24 +1,42 @@
+import { lazy, Suspense } from 'react';
 import { createBrowserRouter } from 'react-router-dom';
 import { ProtectedRoute } from '@/features/auth/components/ProtectedRoute';
 import { LoginForm } from '@/features/auth/components/LoginForm';
 import { AppLayout } from '@/shared/components/layout/AppLayout';
 import { ROLES } from '@/shared/constants/roles';
 
-// Feature Page imports
-import DashboardPage from '@/features/dashboard/pages/DashboardPage';
-import PettyCashListPage from '@/features/petty-cash/pages/PettyCashListPage';
-import PettyCashDetailPage from '@/features/petty-cash/pages/PettyCashDetailPage';
-import LeaveListPage from '@/features/leave/pages/LeaveListPage';
-import LeaveDetailPage from '@/features/leave/pages/LeaveDetailPage';
-import LeaveCalendarPage from '@/features/leave/pages/LeaveCalendarPage';
-import ApprovalCenterPage from '@/features/approvals/pages/ApprovalCenterPage';
-import AnalyticsDashboardPage from '@/features/analytics/pages/AnalyticsDashboardPage';
-import WeeklyReportPage from '@/features/analytics/pages/WeeklyReportPage';
-import MonthlyReportPage from '@/features/analytics/pages/MonthlyReportPage';
-import QuarterlyReportPage from '@/features/analytics/pages/QuarterlyReportPage';
-import DelegationPage from '@/features/delegation/pages/DelegationPage';
-import TeamPage from '@/features/team/pages/TeamPage';
-import SettingsPage from '@/features/settings/pages/SettingsPage';
+// Lazy loader helper with Suspense fallback
+const lazyLoad = (importFunc) => {
+  const LazyComponent = lazy(importFunc);
+  
+  // Set display name for react devtools
+  const LazyWrapper = (props) => (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-[400px]">
+        <span className="loading loading-spinner loading-lg text-secondary"></span>
+      </div>
+    }>
+      <LazyComponent {...props} />
+    </Suspense>
+  );
+  return LazyWrapper;
+};
+
+// Lazy Page imports
+const DashboardPage = lazyLoad(() => import('@/features/dashboard/pages/DashboardPage'));
+const PettyCashListPage = lazyLoad(() => import('@/features/petty-cash/pages/PettyCashListPage'));
+const PettyCashDetailPage = lazyLoad(() => import('@/features/petty-cash/pages/PettyCashDetailPage'));
+const LeaveListPage = lazyLoad(() => import('@/features/leave/pages/LeaveListPage'));
+const LeaveDetailPage = lazyLoad(() => import('@/features/leave/pages/LeaveDetailPage'));
+const LeaveCalendarPage = lazyLoad(() => import('@/features/leave/pages/LeaveCalendarPage'));
+const ApprovalCenterPage = lazyLoad(() => import('@/features/approvals/pages/ApprovalCenterPage'));
+const AnalyticsDashboardPage = lazyLoad(() => import('@/features/analytics/pages/AnalyticsDashboardPage'));
+const WeeklyReportPage = lazyLoad(() => import('@/features/analytics/pages/WeeklyReportPage'));
+const MonthlyReportPage = lazyLoad(() => import('@/features/analytics/pages/MonthlyReportPage'));
+const QuarterlyReportPage = lazyLoad(() => import('@/features/analytics/pages/QuarterlyReportPage'));
+const DelegationPage = lazyLoad(() => import('@/features/delegation/pages/DelegationPage'));
+const TeamPage = lazyLoad(() => import('@/features/team/pages/TeamPage'));
+const SettingsPage = lazyLoad(() => import('@/features/settings/pages/SettingsPage'));
 
 // Roles that have access to analytics & reports
 const ANALYTICS_ROLES = [ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.TEAM_LEAD, ROLES.HR];

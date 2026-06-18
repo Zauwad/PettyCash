@@ -21,7 +21,7 @@ class LeaveType(models.Model):
     )
     name = models.CharField(max_length=50)
     code = models.CharField(max_length=20, help_text="e.g. ANNUAL | SICK | MATERNITY")
-    default_days_per_year = models.PositiveIntegerField(default=15)
+    default_days_per_year = models.PositiveIntegerField(default=24)
     allow_negative_balance = models.BooleanField(
         default=False,
         help_text="Whether company policy allows requesting leave days beyond available balance"
@@ -151,6 +151,11 @@ class LeaveRequest(models.Model):
         # Ensure start_date is before or equal to end_date
         if self.start_date > self.end_date:
             raise ValidationError("Start date cannot be after end date.")
+
+        # Validate requires_attachment
+        if self.leave_type.requires_attachment:
+            if not self.attachments.exists():
+                raise ValidationError(f"An attachment/receipt is required for {self.leave_type.name} leave requests.")
 
     @transition(field=state, source='pending_tl_approval', target='pending_gm_approval')
     def tl_approve(self, start_date, end_date, note):

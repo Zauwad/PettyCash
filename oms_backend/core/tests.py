@@ -174,21 +174,7 @@ class OMSIntegrationTests(TestCase):
             format="json"
         )
         self.assertEqual(approve_res.status_code, status.HTTP_200_OK)
-        self.assertEqual(approve_res.data['state'], 'pending_ceo_approval')
-
-        # Step 3.5: CEO Approves
-        self.client.force_authenticate(user=self.user_ceo1)
-        ceo_approve_res = self.client.post(
-            f"/api/petty-cash/{uuid}/approve/", 
-            {
-                "amount": Decimal("4000.00"), 
-                "needed_by": "2026-06-15", 
-                "note": "CEO approved under limit"
-            }, 
-            format="json"
-        )
-        self.assertEqual(ceo_approve_res.status_code, status.HTTP_200_OK)
-        self.assertEqual(ceo_approve_res.data['state'], 'pending_hr_disbursement')
+        self.assertEqual(approve_res.data['state'], 'pending_hr_disbursement')
 
         # Step 4: Disburse partial amount (HR role must do this)
         self.client.force_authenticate(user=self.user_hr1)
@@ -483,9 +469,9 @@ class OMSIntegrationTests(TestCase):
         req1.refresh_from_db()
         req2.refresh_from_db()
         req3.refresh_from_db()
-        self.assertEqual(req1.state, 'pending_ceo_approval')
-        self.assertEqual(req2.state, 'pending_ceo_approval')
-        self.assertEqual(req3.state, 'pending_ceo_approval')
+        self.assertEqual(req1.state, 'pending_hr_disbursement')
+        self.assertEqual(req2.state, 'pending_hr_disbursement')
+        self.assertEqual(req3.state, 'pending_hr_disbursement')
 
     def test_role_modification_permissions_and_restrictions(self):
         """9.2: Test role modification custom endpoint security and rules."""

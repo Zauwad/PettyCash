@@ -43,9 +43,11 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
     Serializer for LeaveRequest model.
     Runs automated validation for overlaps, holiday exclusions, and negative balances.
     """
+    from pettycash.serializers import AttachmentSerializer
     requester_name = serializers.CharField(source='requester.get_full_name', read_only=True)
     leave_type_details = LeaveTypeSerializer(source='leave_type', read_only=True)
     delegate_name = serializers.CharField(source='delegate_to.get_full_name', read_only=True)
+    attachments = AttachmentSerializer(many=True, read_only=True)
     
     leave_type_id = serializers.PrimaryKeyRelatedField(
         queryset=LeaveType.objects.all(),
@@ -72,14 +74,14 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
             'gm_approved_start_date', 'gm_approved_end_date',
             'requester_name', 'leave_type_details', 'leave_type_id', 
             'delegate_name', 'delegate_to_id', 'created_at', 'updated_at',
-            'activity_log'
+            'activity_log', 'attachments'
         ]
         read_only_fields = [
             'uuid', 'working_days_requested', 'state', 'rejection_reason',
             'tl_approval_note', 'gm_approval_note', 'ceo_approval_note',
             'tl_approved_start_date', 'tl_approved_end_date',
             'gm_approved_start_date', 'gm_approved_end_date',
-            'created_at', 'updated_at', 'activity_log'
+            'created_at', 'updated_at', 'activity_log', 'attachments'
         ]
 
     def get_activity_log(self, obj):

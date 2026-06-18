@@ -10,7 +10,7 @@ export function ProtectedRoute({ children, allowedRoles, allowHR }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  const isHR = user?.profile?.role === 'HR' || user?.profile?.department?.name?.toUpperCase().includes('HR');
+  const isHR = user?.profile?.role === 'HR';
 
   // Enforce role-based dashboard restrictions
   if (allowedRoles) {

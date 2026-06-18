@@ -75,20 +75,40 @@ class PettyCashRequest(models.Model):
     @transition(field=state, source='draft', target='pending_tl_approval')
     def submit(self):
         """
-        Validates budget availability before allowing request submission.
+        Validates budget availability (including pending commitments) before allowing request submission.
         """
+        from decimal import Decimal
         dept = self.department
-        remaining = dept.monthly_budget - dept.budget_spent_this_month
+        
+        # Calculate committed budget for in-flight requests
+        inflight_requests = PettyCashRequest.objects.filter(
+            department=dept,
+            state__in=['pending_tl_approval', 'pending_ceo_approval', 'pending_hr_disbursement', 'partially_disbursed']
+        )
+        if self.id:
+            inflight_requests = inflight_requests.exclude(id=self.id)
+            
+        total_committed = Decimal('0.00')
+        for r in inflight_requests:
+            amt = r.amount_approved if r.amount_approved > 0 else r.amount_requested
+            total_committed += (Decimal(str(amt)) - Decimal(str(r.amount_disbursed)))
+            
+        remaining = Decimal(str(dept.monthly_budget)) - Decimal(str(dept.budget_spent_this_month)) - total_committed
+        
         if self.amount_requested > remaining:
             raise ValidationError(
-                f"Request amount (৳{self.amount_requested}) exceeds remaining "
-                f"department budget (৳{remaining})."
+                f"Request amount (৳{self.amount_requested}) exceeds remaining available "
+                f"department budget after pending commitments (৳{remaining})."
             )
 
-    @transition(field=state, source='pending_tl_approval', target='pending_ceo_approval')
+    @transition(
+        field=state,
+        source='pending_tl_approval',
+        target=RETURN_VALUE('pending_ceo_approval', 'pending_hr_disbursement')
+    )
     def tl_approve(self, amount, needed_by, priority, note):
         """
-        TL approves and potentially edits the request. Routes to CEO.
+        TL approves and potentially edits the request. Routes to HR or CEO based on threshold limit.
         """
         if not note or not note.strip():
             raise ValidationError("An approval note is required.")
@@ -100,6 +120,12 @@ class PettyCashRequest(models.Model):
         self.amount_approved = amount
         self.needed_by = needed_by
         self.priority = priority
+        
+        from decimal import Decimal
+        limit = self.department.tl_approval_limit
+        if Decimal(str(amount)) <= Decimal(str(limit)):
+            return 'pending_hr_disbursement'
+        return 'pending_ceo_approval'
 
     @transition(field=state, source='pending_ceo_approval', target='pending_hr_disbursement')
     def ceo_approve(self, amount, needed_by, note):
@@ -148,12 +174,28 @@ class PettyCashRequest(models.Model):
         self.amount_approved = 0.00
         self.rejection_reason = None
         
+        from decimal import Decimal
         dept = self.department
-        remaining = dept.monthly_budget - dept.budget_spent_this_month
+        
+        # Calculate committed budget for in-flight requests
+        inflight_requests = PettyCashRequest.objects.filter(
+            department=dept,
+            state__in=['pending_tl_approval', 'pending_ceo_approval', 'pending_hr_disbursement', 'partially_disbursed']
+        )
+        if self.id:
+            inflight_requests = inflight_requests.exclude(id=self.id)
+            
+        total_committed = Decimal('0.00')
+        for r in inflight_requests:
+            amt = r.amount_approved if r.amount_approved > 0 else r.amount_requested
+            total_committed += (Decimal(str(amt)) - Decimal(str(r.amount_disbursed)))
+            
+        remaining = Decimal(str(dept.monthly_budget)) - Decimal(str(dept.budget_spent_this_month)) - total_committed
+        
         if self.amount_requested > remaining:
             raise ValidationError(
-                f"Request amount (৳{self.amount_requested}) exceeds remaining "
-                f"department budget (৳{remaining})."
+                f"Request amount (৳{self.amount_requested}) exceeds remaining available "
+                f"department budget after pending commitments (৳{remaining})."
             )
 
     @transition(field=state, source='pending_tl_approval', target='rejected')

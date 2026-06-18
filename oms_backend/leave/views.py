@@ -58,12 +58,38 @@ class LeaveBalanceViewSet(OrganizationViewSetMixin, viewsets.ReadOnlyModelViewSe
             
         role = user.profile.role
         
-        # Regular employees are restricted to viewing only their own balances
-        if role == UserRole.EMPLOYEE:
-            return queryset.filter(user=user)
+        # Determine the target year
+        year_str = self.request.query_params.get('year')
+        try:
+            year = int(year_str) if year_str else datetime.now().year
+        except ValueError:
+            year = datetime.now().year
             
         # Managers / Admins can filter by specific user
         user_id = self.request.query_params.get('user_id')
+        
+        # Gather target users to initialize balances for
+        from django.contrib.auth.models import User as AuthUser
+        target_users = []
+        if role == UserRole.EMPLOYEE:
+            target_users = [user]
+        elif user_id:
+            try:
+                target_users = [AuthUser.objects.get(id=user_id)]
+            except AuthUser.DoesNotExist:
+                pass
+        else:
+            target_users = [user]
+
+        # Auto-initialize balances for target users
+        from leave.utils import get_or_create_leave_balance
+        for u in target_users:
+            active_types = LeaveType.objects.filter(organization=u.profile.organization, is_active=True)
+            for lt in active_types:
+                get_or_create_leave_balance(u, lt, year)
+
+        if role == UserRole.EMPLOYEE:
+            return queryset.filter(user=user)
         if user_id:
             return queryset.filter(user_id=user_id)
             
@@ -126,6 +152,41 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
             requester=user,
             organization=user.profile.organization
         )
+
+    @action(detail=True, methods=['post'], url_path='attachments')
+    def upload_attachments(self, request, uuid=None):
+        """Allows uploading files scoped to this leave request."""
+        obj = self.get_object()
+        
+        # Only draft/rejected requests can have attachments added
+        if obj.state not in ['draft', 'rejected']:
+            return Response({"detail": "Attachments can only be added to draft or rejected leave requests."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        files = request.FILES.getlist('files')
+        if not files:
+            return Response({"files": ["No files were uploaded."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if len(files) > 5:
+            return Response({"detail": "Maximum 5 files can be uploaded at once."}, status=status.HTTP_400_BAD_REQUEST)
+            
+        from pettycash.serializers import AttachmentSerializer
+        attachments = []
+        try:
+            with transaction.atomic():
+                for f in files:
+                    serializer = AttachmentSerializer(data={'file': f}, context={'request': request})
+                    if serializer.is_valid(raise_exception=True):
+                        # Save inside the atomic block
+                        attachment = serializer.save(
+                            leave_request=obj,
+                            uploaded_by=request.user
+                        )
+                        attachments.append(attachment)
+            
+            from pettycash.serializers import AttachmentSerializer
+            return Response(AttachmentSerializer(attachments, many=True, context={'request': request}).data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'])
     def submit(self, request, uuid=None):
@@ -364,7 +425,7 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'], url_path='team-calendar')
     def team_calendar(self, request):
-        """Returns a month-view schedule of which employees are out on approved leave."""
+        """Returns a month-view schedule of which employees are out on approved or pending leave."""
         # Get query parameters
         month_str = request.query_params.get('month')
         year_str = request.query_params.get('year')
@@ -375,10 +436,10 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
         
         org = request.user.profile.organization
         
-        # Query approved leaves overlapping with target month/year
+        # Query approved/pending leaves overlapping with target month/year
         leaves = LeaveRequest.objects.filter(
             organization=org,
-            state='approved',
+            state__in=['pending_tl_approval', 'pending_gm_approval', 'approved'],
             start_date__year__lte=year,
             end_date__year__gte=year
         ).select_related('requester', 'leave_type')
@@ -411,7 +472,8 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                 "end_date": leaf.end_date,
                 "working_days_requested": leaf.working_days_requested,
                 "is_half_day": leaf.is_half_day,
-                "half_day_period": leaf.half_day_period
+                "half_day_period": leaf.half_day_period,
+                "state": leaf.state
             })
             
         return Response(data)
@@ -437,7 +499,7 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
             
         overlapping = LeaveRequest.objects.filter(
             organization=request.organization,
-            state__in=['pending_tl_approval', 'pending_ceo_approval', 'approved']
+            state__in=['pending_tl_approval', 'pending_gm_approval', 'approved']
         ).filter(
             start_date__lte=end_date,
             end_date__gte=start_date

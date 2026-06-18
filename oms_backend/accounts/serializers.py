@@ -17,9 +17,27 @@ class DepartmentSummarySerializer(serializers.ModelSerializer):
     """
     Sub-serializer to provide basic department details on user authentication.
     """
+    budget_committed = serializers.SerializerMethodField()
+
     class Meta:
         model = Department
-        fields = ['id', 'name', 'monthly_budget', 'budget_spent_this_month', 'budget_frequency', 'tl_approval_limit']
+        fields = ['id', 'name', 'monthly_budget', 'budget_spent_this_month', 'budget_committed', 'budget_frequency', 'tl_approval_limit']
+
+    def get_budget_committed(self, obj):
+        from pettycash.models import PettyCashRequest
+        from decimal import Decimal
+        
+        inflight_requests = PettyCashRequest.objects.filter(
+            department=obj,
+            state__in=['pending_tl_approval', 'pending_ceo_approval', 'pending_hr_disbursement', 'partially_disbursed']
+        )
+        
+        total_committed = Decimal('0.00')
+        for r in inflight_requests:
+            amt = r.amount_approved if r.amount_approved > 0 else r.amount_requested
+            total_committed += (Decimal(str(amt)) - Decimal(str(r.amount_disbursed)))
+            
+        return float(total_committed)
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

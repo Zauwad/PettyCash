@@ -31,7 +31,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const { user, logout } = useAuth();
   const role = user?.profile?.role || user?.role;
   const location = useLocation();
-  const isHR = role === ROLES.HR || user?.profile?.department?.name?.toUpperCase().includes('HR');
+  const isHR = role === ROLES.HR;
 
   // Whether the analytics sub-menu is expanded
   const isAnalyticsActive = location.pathname.startsWith('/analytics');

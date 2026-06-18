@@ -6,6 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { pettyCashApi } from '../api/pettyCashApi';
 import { PageTransition } from '@/shared/components/ui/PageTransition';
 import { StatusBadge } from '@/shared/components/ui/StatusBadge';
+import { PriceLookupPanel } from '@/shared/components/ui/PriceLookupPanel';
 import { toast } from 'sonner';
 import { Select } from '@/shared/components/ui/Select';
 import { Badge } from '@/components/ui/badge';
@@ -690,6 +691,14 @@ export function PettyCashDetailPage() {
                 ></progress>
               </div>
             </div>
+
+            {/* Market Price Intel Panel */}
+            <PriceLookupPanel 
+              defaultQuery={
+                request.line_items?.[0]?.description || 
+                request.title?.replace(/^(pending\s+(?:ceo|tl|payout|hr|disbursement|approval)|approved|rejected|draft|cancelled|processed)\s*[-:\s]\s*/i, '').trim()
+              } 
+            />
 
             {/* Stepper Timeline */}
             <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-5">

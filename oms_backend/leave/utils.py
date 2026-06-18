@@ -47,7 +47,7 @@ def check_overlap(user, start_date, end_date, exclude_request_id=None):
     
     overlapping = LeaveRequest.objects.filter(
         requester=user,
-        state__in=['pending_tl_approval', 'pending_ceo_approval', 'approved'],
+        state__in=['pending_tl_approval', 'pending_gm_approval', 'approved'],
         start_date__lte=end_date,
         end_date__gte=start_date,
     )
@@ -61,26 +61,56 @@ def check_overlap(user, start_date, end_date, exclude_request_id=None):
             f"Overlapping leave request found: {conflicts}."
         )
 
+def get_or_create_leave_balance(user, leave_type, year):
+    """
+    Gets or creates a LeaveBalance for a user, leave_type, and year.
+    Applies carry-forward rules from the previous year if creating a new balance.
+    """
+    from leave.models import LeaveBalance
+    from decimal import Decimal
+    
+    # Try to fetch existing
+    try:
+        return LeaveBalance.objects.get(user=user, leave_type=leave_type, year=year)
+    except LeaveBalance.DoesNotExist:
+        pass
+        
+    # Calculate carry forward
+    carry_forward = Decimal('0.0')
+    org = user.profile.organization
+    policy = org.policy_config or {}
+    max_carry = Decimal(str(policy.get('max_carry_forward_days', 0)))
+    
+    # Only carry forward ANNUAL leaves
+    if leave_type.code == 'ANNUAL' and max_carry > 0:
+        try:
+            prev_balance = LeaveBalance.objects.get(user=user, leave_type=leave_type, year=year - 1)
+            available_prev = prev_balance.available
+            if available_prev > 0:
+                carry_forward = min(Decimal(str(available_prev)), max_carry)
+        except LeaveBalance.DoesNotExist:
+            pass
+            
+    total_allocated = Decimal(str(leave_type.default_days_per_year)) + carry_forward
+    
+    balance = LeaveBalance.objects.create(
+        user=user,
+        leave_type=leave_type,
+        year=year,
+        total_allocated=total_allocated,
+        used=Decimal('0.0'),
+        pending=Decimal('0.0'),
+        available=total_allocated
+    )
+    return balance
+
 def check_negative_balance(user, leave_type, working_days_requested, year):
     """
     Verifies if a user has sufficient leave balance.
     Enforces the negative balance policies based on leave type configuration
     and organization policy_config.
     """
-    from leave.models import LeaveBalance
-    
-    # Get or create current year balance for safety
-    balance, _ = LeaveBalance.objects.get_or_create(
-        user=user,
-        leave_type=leave_type,
-        year=year,
-        defaults={
-            'total_allocated': leave_type.default_days_per_year,
-            'used': 0.0,
-            'pending': 0.0,
-            'available': leave_type.default_days_per_year
-        }
-    )
+    balance = get_or_create_leave_balance(user, leave_type, year)
     
     available = balance.total_allocated - balance.used - balance.pending
     

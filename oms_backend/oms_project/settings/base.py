@@ -196,6 +196,9 @@ EMAIL_HOST_PASSWORD = env('EMAIL_HOST_PASSWORD')
 EMAIL_USE_TLS = env('EMAIL_USE_TLS')
 DEFAULT_FROM_EMAIL = env('DEFAULT_FROM_EMAIL')
 
+# Third-Party API Keys
+SERPAPI_KEY = env('SERPAPI_KEY', default='')
+
 # Spectacular API doc settings
 SPECTACULAR_SETTINGS = {
     'TITLE': 'OMS API',

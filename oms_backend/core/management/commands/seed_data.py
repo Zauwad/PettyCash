@@ -57,7 +57,7 @@ class Command(BaseCommand):
         ]
 
         leave_configs = [
-            {"name": "Annual Leave", "code": "ANNUAL", "days": 15, "neg": False},
+            {"name": "Annual Leave", "code": "ANNUAL", "days": 24, "neg": False},
             {"name": "Sick Leave", "code": "SICK", "days": 10, "neg": True},
             {"name": "Maternity Leave", "code": "MATERNITY", "days": 120, "neg": False},
             {"name": "Paternity Leave", "code": "PATERNITY", "days": 10, "neg": False},

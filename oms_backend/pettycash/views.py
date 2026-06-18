@@ -2,12 +2,14 @@ from django.shortcuts import get_object_or_404
 from django.db import transaction
 from django.http import HttpResponse
 from django.core.exceptions import ValidationError
+from django.conf import settings
 from rest_framework import viewsets, status
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django_fsm import TransitionNotAllowed
+import requests as http_requests
 
 from core.mixins import OrganizationViewSetMixin
 from core.permissions import IsOrganizationMember
@@ -403,6 +405,104 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                 results["failed"].append({"id": req_id, "error": str(e)})
                 
         return Response(results)
+
+    @action(detail=False, methods=['get'], url_path='price-lookup', permission_classes=[IsAuthenticated])
+    def price_lookup(self, request):
+        """
+        Proxy to SerpAPI Google Search (Bangladesh, BDT).
+        Returns structured price results for a given product query.
+        GET /api/petty-cash/price-lookup/?q=<product name>
+        """
+        import re
+        query = request.query_params.get('q', '').strip()
+        if not query:
+            return Response({'detail': 'Query parameter "q" is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        api_key = settings.SERPAPI_KEY
+        if not api_key:
+            return Response({'detail': 'Price lookup is not configured on this server.'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        # Clean status prefix (e.g. "Pending CEO - Hardware Router upgrade" -> "Hardware Router upgrade")
+        cleaned_query = re.sub(
+            r'^(pending\s+(?:ceo|tl|payout|hr|disbursement|approval)|approved|rejected|draft|cancelled|processed)\s*[-:\s]\s*',
+            '',
+            query,
+            flags=re.IGNORECASE
+        ).strip()
+
+        # Optimize search query to target price search in Bangladesh if not specified
+        search_query = cleaned_query
+        lower_query = cleaned_query.lower()
+        if 'price' not in lower_query and 'bd' not in lower_query and 'bangladesh' not in lower_query:
+            search_query = f"{cleaned_query} price in bd"
+
+        try:
+            resp = http_requests.get(
+                'https://serpapi.com/search.json',
+                params={
+                    'engine': 'google',
+                    'q': search_query,
+                    'gl': 'bd',
+                    'hl': 'en',
+                    'location': 'Dhaka, Bangladesh',
+                    'api_key': api_key,
+                    'num': 10,
+                },
+                timeout=10
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except http_requests.exceptions.Timeout:
+            return Response({'detail': 'Price lookup timed out. Try again.'}, status=status.HTTP_504_GATEWAY_TIMEOUT)
+        except http_requests.exceptions.RequestException as e:
+            return Response({'detail': f'Price lookup failed: {str(e)}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        organic_results = data.get('organic_results', [])
+        results = []
+        
+        # Regex to match BDT price patterns (e.g. Tk 500, BDT 500, 500 BDT, 500 Tk, BDT 300 - 500, BDT 300 to 500)
+        price_pattern = re.compile(
+            r'(?:(?:BDT|Tk|TK|৳|Taka|taka)\.?\s*\d+(?:,\d{3})*(?:\.\d{2})?(?:\s*(?:-|to)\s*(?:(?:BDT|Tk|TK|৳|Taka|taka)\.?\s*)?\d+(?:,\d{3})*(?:\.\d{2})?)?|\d+(?:,\d{3})*(?:\.\d{2})?\s*(?:BDT|Tk|TK|৳|Taka|taka)\.?)',
+            re.IGNORECASE
+        )
+
+        for item in organic_results[:10]:
+            title = item.get('title', '')
+            link = item.get('link', '')
+            snippet = item.get('snippet', '')
+            
+            # Determine store/source
+            source = item.get('source', '')
+            if not source:
+                displayed_link = item.get('displayed_link', '')
+                if displayed_link:
+                    source = displayed_link.split(' › ')[0].replace('https://', '').replace('http://', '').split('/')[0]
+                else:
+                    source = 'Website'
+            
+            # Extract price
+            price = ''
+            if snippet:
+                match = price_pattern.search(snippet)
+                if match:
+                    price = match.group(0).strip()
+            
+            if not price and title:
+                match = price_pattern.search(title)
+                if match:
+                    price = match.group(0).strip()
+                    
+            thumbnail = item.get('favicon', '')
+
+            results.append({
+                'title': title,
+                'price': price,
+                'store': source,
+                'link': link,
+                'thumbnail': thumbnail,
+            })
+
+        return Response({'results': results, 'query': query})
 
 
 class AttachmentDownloadView(APIView):

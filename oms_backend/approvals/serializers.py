@@ -55,9 +55,9 @@ class ApprovalDelegationSerializer(serializers.ModelSerializer):
         if delegator_profile.organization != delegate_profile.organization:
             raise serializers.ValidationError({"delegate_id": "Delegate must belong to your organization."})
 
-        # Only Team Leads and CEOs can delegate approval authority
-        if delegator_profile.role not in ['TEAM_LEAD', 'CEO']:
-            raise serializers.ValidationError("Only Team Leads and CEOs can delegate approval authority.")
+        # Only Team Leads, General Managers, and CEOs can delegate approval authority
+        if delegator_profile.role not in ['TEAM_LEAD', 'GENERAL_MANAGER', 'CEO']:
+            raise serializers.ValidationError("Only Team Leads, General Managers, and CEOs can delegate approval authority.")
 
         # Circular delegation check
         # e.g., if A delegates to B, B cannot have an active delegation back to A during overlapping period

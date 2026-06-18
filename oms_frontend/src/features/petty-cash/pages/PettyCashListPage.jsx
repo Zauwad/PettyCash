@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -8,6 +8,7 @@ import { StatusBadge } from '@/shared/components/ui/StatusBadge';
 import { LoadingSkeleton } from '@/shared/components/ui/LoadingSkeleton';
 import { EmptyState } from '@/shared/components/ui/EmptyState';
 import { PageTransition } from '@/shared/components/ui/PageTransition';
+import { PriceLookupPanel } from '@/shared/components/ui/PriceLookupPanel';
 import { useGSAPStagger } from '@/shared/hooks/useGSAPStagger';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -89,8 +90,9 @@ export function PettyCashListPage() {
   // Department Budget Info
   const deptBudget = parseFloat(user?.profile?.department?.monthly_budget || 0);
   const deptSpent = parseFloat(user?.profile?.department?.budget_spent_this_month || 0);
+  const deptCommitted = parseFloat(user?.profile?.department?.budget_committed || 0);
   const budgetFrequency = user?.profile?.department?.budget_frequency || 'MONTHLY';
-  const remainingBudget = deptBudget - deptSpent;
+  const remainingBudget = Math.max(0, deptBudget - deptSpent - deptCommitted);
 
   // React Hook Form
   const {
@@ -158,8 +160,9 @@ export function PettyCashListPage() {
       setFilesToUpload([]);
       setView('list');
       setSearchParams(prev => {
-        prev.delete('create');
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.delete('create');
+        return next;
       });
       queryClient.invalidateQueries({ queryKey: ['petty-cash-list'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-petty-cash'] });
@@ -176,32 +179,35 @@ export function PettyCashListPage() {
   // Stagger items entrance
   const listRef = useGSAPStagger('.requisition-card', [requisitions?.results]);
 
-  const handleTabChange = (state) => {
+  const handleTabChange = useCallback((state) => {
     setSearchParams((prev) => {
-      if (state === 'all') prev.delete('state');
-      else prev.set('state', state);
-      prev.set('page', '1');
-      return prev;
+      const next = new URLSearchParams(prev);
+      if (state === 'all') next.delete('state');
+      else next.set('state', state);
+      next.set('page', '1');
+      return next;
     });
-  };
+  }, [setSearchParams]);
 
-  const handleSearch = (term) => {
+  const handleSearch = useCallback((term) => {
     setSearchParams((prev) => {
-      if (!term) prev.delete('search');
-      else prev.set('search', term);
-      prev.set('page', '1');
-      return prev;
+      const next = new URLSearchParams(prev);
+      if (!term) next.delete('search');
+      else next.set('search', term);
+      next.set('page', '1');
+      return next;
     });
-  };
+  }, [setSearchParams]);
 
-  const handlePriorityFilter = (priority) => {
+  const handlePriorityFilter = useCallback((priority) => {
     setSearchParams((prev) => {
-      if (priority === 'all') prev.delete('priority');
-      else prev.set('priority', priority);
-      prev.set('page', '1');
-      return prev;
+      const next = new URLSearchParams(prev);
+      if (priority === 'all') next.delete('priority');
+      else next.set('priority', priority);
+      next.set('page', '1');
+      return next;
     });
-  };
+  }, [setSearchParams]);
 
   const handleFileDrop = (e) => {
     e.preventDefault();
@@ -260,14 +266,16 @@ export function PettyCashListPage() {
     if (shouldCreate) {
       setView('create');
       setSearchParams(prev => {
-        prev.set('create', 'true');
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.set('create', 'true');
+        return next;
       });
     } else {
       setView('list');
       setSearchParams(prev => {
-        prev.delete('create');
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.delete('create');
+        return next;
       });
       reset();
       setFilesToUpload([]);
@@ -465,7 +473,11 @@ export function PettyCashListPage() {
               <div className="flex justify-center gap-2 mt-8">
                 <button
                   disabled={page === 1}
-                  onClick={() => setSearchParams(prev => { prev.set('page', String(page - 1)); return prev; })}
+                  onClick={() => setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.set('page', String(page - 1));
+                    return next;
+                  })}
                   className="btn btn-outline btn-sm rounded-lg border-base-content/10 text-xs"
                 >
                   Previous
@@ -475,7 +487,11 @@ export function PettyCashListPage() {
                 </span>
                 <button
                   disabled={page >= Math.ceil(requisitions.count / 20)}
-                  onClick={() => setSearchParams(prev => { prev.set('page', String(page + 1)); return prev; })}
+                  onClick={() => setSearchParams(prev => {
+                    const next = new URLSearchParams(prev);
+                    next.set('page', String(page + 1));
+                    return next;
+                  })}
                   className="btn btn-outline btn-sm rounded-lg border-base-content/10 text-xs"
                 >
                   Next
@@ -715,6 +731,9 @@ export function PettyCashListPage() {
                   </div>
                 </div>
               </div>
+
+              {/* Market Price Intel Panel */}
+              <PriceLookupPanel />
 
               {/* Document Uploader */}
               <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">

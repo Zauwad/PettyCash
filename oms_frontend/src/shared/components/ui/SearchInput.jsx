@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Search } from 'lucide-react';
 
 /**
@@ -11,18 +11,32 @@ import { Search } from 'lucide-react';
  */
 export function SearchInput({ value = '', onSearch, placeholder = 'Search...', delay = 400 }) {
   const [searchTerm, setSearchTerm] = useState(value);
+  const onSearchRef = useRef(onSearch);
+  const isFirstRender = useRef(true);
 
+  // Sync value from props to internal state
   useEffect(() => {
     setSearchTerm(value);
   }, [value]);
 
+  // Keep callback ref updated with the latest function reference
   useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
+  // Debounce search input changes only
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
     const handler = setTimeout(() => {
-      onSearch(searchTerm);
+      onSearchRef.current(searchTerm);
     }, delay);
 
     return () => clearTimeout(handler);
-  }, [searchTerm, onSearch, delay]);
+  }, [searchTerm, delay]);
 
   return (
     <div className="relative w-full max-w-md">

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -28,7 +28,9 @@ import {
   CalendarDays,
   X,
   Users,
-  CheckCircle2
+  CheckCircle2,
+  UploadCloud,
+  FileText
 } from 'lucide-react';
 
 const leaveRequestSchema = z.object({
@@ -75,6 +77,36 @@ export function LeaveListPage() {
   // Overlapping leaves checking state
   const [overlappingLeaves, setOverlappingLeaves] = useState([]);
   const [isCheckingOverlaps, setIsCheckingOverlaps] = useState(false);
+
+  // Leave attachments state
+  const [filesToUpload, setFilesToUpload] = useState([]);
+
+  const handleFileDrop = (e) => {
+    e.preventDefault();
+    const droppedFiles = Array.from(e.dataTransfer?.files || e.target.files);
+    
+    // Validations
+    const validFiles = droppedFiles.filter(file => {
+      const isValidSize = file.size <= 10 * 1024 * 1024;
+      const isValidType = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'].includes(file.type);
+      
+      if (!isValidSize) toast.error(`${file.name} exceeds 10MB limit.`);
+      if (!isValidType) toast.error(`${file.name} file type is not supported.`);
+      
+      return isValidSize && isValidType;
+    });
+
+    if (filesToUpload.length + validFiles.length > 5) {
+      toast.error('You can upload a maximum of 5 files.');
+      return;
+    }
+
+    setFilesToUpload(prev => [...prev, ...validFiles]);
+  };
+
+  const removeFile = (index) => {
+    setFilesToUpload(prev => prev.filter((_, i) => i !== index));
+  };
 
 
 
@@ -137,6 +169,7 @@ export function LeaveListPage() {
   const watchedIsHalfDay = watch('is_half_day');
   const watchedLeaveTypeId = watch('leave_type_id');
   const watchedHalfDayPeriod = watch('half_day_period');
+  const selectedLeaveType = leaveTypes?.results?.find(t => String(t.id) === String(watchedLeaveTypeId));
   const watchedDelegateToId = watch('delegate_to_id');
 
   // Trigger working days calculation
@@ -204,6 +237,17 @@ export function LeaveListPage() {
   const createMutation = useMutation({
     mutationFn: (data) => leaveApi.createRequest(data),
     onSuccess: async (newReq) => {
+      // Upload files if any
+      if (filesToUpload.length > 0) {
+        toast.info('Uploading attachments...');
+        try {
+          await leaveApi.uploadAttachments(newReq.uuid, filesToUpload);
+          toast.success('Attachments uploaded.');
+        } catch (_e) {
+          toast.error('Failed to upload some attachments.');
+        }
+      }
+
       try {
         // Submit request for approval automatically
         await leaveApi.submitRequest(newReq.uuid);
@@ -213,10 +257,12 @@ export function LeaveListPage() {
       }
       
       reset();
+      setFilesToUpload([]);
       setView('list');
       setSearchParams(prev => {
-        prev.delete('create');
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.delete('create');
+        return next;
       });
       queryClient.invalidateQueries({ queryKey: ['leave-requests-list'] });
       queryClient.invalidateQueries({ queryKey: ['leave-balances-list'] });
@@ -237,25 +283,33 @@ export function LeaveListPage() {
   // Stagger animation
   const listRef = useGSAPStagger('.leave-card', [requests?.results]);
 
-  const handleTabChange = (state) => {
+  const handleTabChange = useCallback((state) => {
     setSearchParams((prev) => {
-      if (state === 'all') prev.delete('state');
-      else prev.set('state', state);
-      prev.set('page', '1');
-      return prev;
+      const next = new URLSearchParams(prev);
+      if (state === 'all') next.delete('state');
+      else next.set('state', state);
+      next.set('page', '1');
+      return next;
     });
-  };
+  }, [setSearchParams]);
 
-  const handleSearch = (term) => {
+  const handleSearch = useCallback((term) => {
     setSearchParams((prev) => {
-      if (!term) prev.delete('search');
-      else prev.set('search', term);
-      prev.set('page', '1');
-      return prev;
+      const next = new URLSearchParams(prev);
+      if (!term) next.delete('search');
+      else next.set('search', term);
+      next.set('page', '1');
+      return next;
     });
-  };
+  }, [setSearchParams]);
 
   const onSubmit = (data) => {
+    const selectedLeaveType = leaveTypes?.results?.find(t => String(t.id) === String(data.leave_type_id));
+    if (selectedLeaveType?.requires_attachment && filesToUpload.length === 0) {
+      toast.error('An attachment is required for this leave category.');
+      return;
+    }
+
     const payload = {
       leave_type_id: parseInt(data.leave_type_id),
       start_date: data.start_date,
@@ -274,16 +328,19 @@ export function LeaveListPage() {
     if (shouldCreate) {
       setView('create');
       setSearchParams(prev => {
-        prev.set('create', 'true');
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.set('create', 'true');
+        return next;
       });
     } else {
       setView('list');
       setSearchParams(prev => {
-        prev.delete('create');
-        return prev;
+        const next = new URLSearchParams(prev);
+        next.delete('create');
+        return next;
       });
       reset();
+      setFilesToUpload([]);
       setWorkingDays(0);
     }
   };
@@ -453,7 +510,11 @@ export function LeaveListPage() {
                 <div className="flex justify-center gap-2 mt-8">
                   <button
                     disabled={page === 1}
-                    onClick={() => setSearchParams(prev => { prev.set('page', String(page - 1)); return prev; })}
+                    onClick={() => setSearchParams(prev => {
+                      const next = new URLSearchParams(prev);
+                      next.set('page', String(page - 1));
+                      return next;
+                    })}
                     className="btn btn-outline btn-sm rounded-lg border-base-content/10 text-xs"
                   >
                     Previous
@@ -463,7 +524,11 @@ export function LeaveListPage() {
                   </span>
                   <button
                     disabled={page >= Math.ceil(requests.count / 20)}
-                    onClick={() => setSearchParams(prev => { prev.set('page', String(page + 1)); return prev; })}
+                    onClick={() => setSearchParams(prev => {
+                      const next = new URLSearchParams(prev);
+                      next.set('page', String(page + 1));
+                      return next;
+                    })}
                     className="btn btn-outline btn-sm rounded-lg border-base-content/10 text-xs"
                   >
                     Next
@@ -761,6 +826,75 @@ export function LeaveListPage() {
                     <span>
                       <strong>Perfect Coverage!</strong> No other colleagues are out during this period.
                     </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Document Uploader */}
+              <div className={`glass-panel p-6 rounded-2xl shadow-xl space-y-4 border transition-all duration-300 ${
+                selectedLeaveType?.requires_attachment 
+                  ? 'border-warning/35 bg-warning/5' 
+                  : 'border-base-content/5'
+              }`}>
+                <div>
+                  <h3 className="text-base font-bold Outfit flex items-center justify-between">
+                    <span>Medical / Support Attachments</span>
+                    {selectedLeaveType?.requires_attachment && (
+                      <span className="badge badge-warning font-bold text-[9px] uppercase tracking-wider h-4 rounded-md">Required</span>
+                    )}
+                  </h3>
+                  <p className="text-[10px] text-base-content/40 font-semibold uppercase mt-0.5">
+                    {selectedLeaveType?.requires_attachment 
+                      ? 'Please upload supporting documents (Max 5 files, 10MB each)'
+                      : 'Optional supporting documents (Max 5 files, 10MB each)'
+                    }
+                  </p>
+                </div>
+
+                {/* Drop Zone */}
+                <div
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleFileDrop}
+                  className={`border border-dashed rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer transition-all duration-200 bg-base-100/20 ${
+                    selectedLeaveType?.requires_attachment
+                      ? 'border-warning/30 hover:border-warning/60 hover:bg-warning/5'
+                      : 'border-base-content/20 hover:border-secondary/40 hover:bg-secondary/5'
+                  }`}
+                >
+                  <input
+                    type="file"
+                    id="leave-file-upload"
+                    multiple
+                    className="hidden"
+                    onChange={handleFileDrop}
+                  />
+                  <label htmlFor="leave-file-upload" className="cursor-pointer flex flex-col items-center">
+                    <UploadCloud className={`w-8 h-8 mb-2 ${selectedLeaveType?.requires_attachment ? 'text-warning/55' : 'text-base-content/30'}`} />
+                    <span className={`text-xs font-bold ${selectedLeaveType?.requires_attachment ? 'text-warning' : 'text-secondary'}`}>Upload documents</span>
+                    <span className="text-[10px] text-base-content/40 mt-1">or drag and drop here</span>
+                  </label>
+                </div>
+
+                {/* Selected files list */}
+                {filesToUpload.length > 0 && (
+                  <div className="space-y-2 border-t border-base-content/5 pt-3">
+                    <p className="text-[10px] font-bold text-base-content/40 uppercase">Selected Files ({filesToUpload.length})</p>
+                    {filesToUpload.map((file, index) => (
+                      <div key={index} className="flex items-center justify-between bg-base-300/40 p-2.5 rounded-lg border border-base-content/5 text-xs">
+                        <div className="flex items-center gap-2 overflow-hidden">
+                          <FileText className={`w-4 h-4 shrink-0 ${selectedLeaveType?.requires_attachment ? 'text-warning' : 'text-secondary'}`} />
+                          <span className="font-semibold truncate max-w-[150px]">{file.name}</span>
+                          <span className="text-[9px] text-base-content/40">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeFile(index)}
+                          className="btn btn-ghost btn-circle btn-xs text-base-content/45 hover:text-error"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

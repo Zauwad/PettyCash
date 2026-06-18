@@ -184,15 +184,21 @@ export function LeaveCalendarPage() {
 
                       {/* Absences list in cell */}
                       <div className="space-y-1.5 mt-2 overflow-y-auto max-h-[80px]">
-                        {dayAbsences.map((abs) => (
-                          <div 
-                            key={abs.id} 
-                            className="bg-secondary/15 hover:bg-secondary/25 border-l-3 border-secondary text-[10px] font-bold p-1 rounded-md text-secondary truncate cursor-pointer transition-colors duration-150"
-                            title={`${abs.requester?.full_name} (${abs.requester?.department}) - ${abs.leave_type} (${abs.working_days_requested} days)`}
-                          >
-                            {abs.requester?.full_name?.split(' ')[0]}
-                          </div>
-                        ))}
+                        {dayAbsences.map((abs) => {
+                          const isPending = abs.state && abs.state.startsWith('pending');
+                          return (
+                            <div 
+                              key={abs.id} 
+                              className={isPending
+                                ? "bg-warning/10 hover:bg-warning/20 border-l-3 border-warning text-[10px] font-bold p-1 rounded-md text-warning truncate cursor-pointer transition-colors duration-150"
+                                : "bg-secondary/15 hover:bg-secondary/25 border-l-3 border-secondary text-[10px] font-bold p-1 rounded-md text-secondary truncate cursor-pointer transition-colors duration-150"
+                              }
+                              title={`${abs.requester?.full_name} (${abs.requester?.department}) - ${abs.leave_type} (${abs.working_days_requested} days)${isPending ? ' [PENDING]' : ''}`}
+                            >
+                              {abs.requester?.full_name?.split(' ')[0]}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );

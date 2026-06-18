@@ -372,3 +372,48 @@ def handle_delegation_created(sender, instance, created, **kwargs):
                 f"Best regards,\nOMS Team"
             )
             send_email_async.delay(subject, email_body, [instance.delegate.email])
+
+
+@receiver(post_save, sender='pettycash.PettyCashRequest')
+@receiver(post_save, sender='leave.LeaveRequest')
+def log_request_creation(sender, instance, created, **kwargs):
+    """
+    Auto-log request creation so history starts with a 'CREATED' entry.
+    """
+    if not created:
+        return
+        
+    model_name = sender.__name__
+    actor = get_current_user() or getattr(instance, 'requester', None)
+    
+    organization = getattr(instance, 'organization', None)
+    if not organization and hasattr(instance, 'requester') and hasattr(instance.requester, 'profile'):
+        organization = instance.requester.profile.organization
+        
+    if not organization:
+        return
+
+    amount_meta = ""
+    if hasattr(instance, 'amount_requested'):
+        amount_meta = str(instance.amount_requested)
+    elif hasattr(instance, 'working_days_requested'):
+        amount_meta = f"{instance.working_days_requested} days"
+
+    try:
+        AuditLog.objects.create(
+            organization=organization,
+            actor=actor if (actor and not actor.is_anonymous) else None,
+            action="CREATED",
+            target_type=model_name,
+            target_id=instance.id,
+            old_state="",
+            new_state="draft",
+            reason="",
+            metadata={
+                "amount_or_duration": amount_meta,
+                "title": getattr(instance, 'title', f"{model_name} request")
+            }
+        )
+    except Exception as e:
+        logger.error(f"Failed to create AuditLog for request creation: {e}")
+

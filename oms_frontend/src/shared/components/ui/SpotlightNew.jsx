@@ -6,7 +6,7 @@ export function SpotlightNew({ className }) {
     <div className={cn("fixed inset-0 overflow-hidden pointer-events-none z-0", className)}>
       {/* Left Spotlight Beam - Adjusted to top */}
       <svg
-        className="absolute top-[-40%] left-[-80%] w-[120%] h-[80%] md:top-[-60%] md:left-[-20%] md:w-[80%] md:h-[150%] opacity-15 md:opacity-20 animate-pulse"
+        className="absolute top-[-40%] left-[-80%] w-[120%] h-[80%] md:top-[-60%] md:left-[-20%] md:w-[80%] md:h-[150%] opacity-15 md:opacity-20 animate-pulse "
         style={{ animationDuration: '8s' }}
         xmlns="http://www.w3.org/2000/svg"
         viewBox="0 0 3787 2842"

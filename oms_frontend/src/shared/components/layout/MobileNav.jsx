@@ -11,7 +11,7 @@ export function MobileNav({ isOpen, onClose }) {
   const { user, logout } = useAuth();
   const role = user?.profile?.role;
   const location = useLocation();
-  const isHR = role === ROLES.HR || user?.profile?.department?.name?.toUpperCase().includes('HR');
+  const isHR = role === ROLES.HR;
   const isAnalyticsActive = location.pathname.startsWith('/analytics');
   const [analyticsOpen, setAnalyticsOpen] = useState(isAnalyticsActive);
   const canSeeAnalytics = ANALYTICS_ROLES.includes(role);
