@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { ROLES } from '@/shared/constants/roles';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { pettyCashApi } from '@/features/petty-cash/api/pettyCashApi';
 import { leaveApi } from '@/features/leave/api/leaveApi';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -37,7 +37,9 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const isAnalyticsActive = location.pathname.startsWith('/analytics');
   const [analyticsOpen, setAnalyticsOpen] = useState(isAnalyticsActive);
 
-  // Query: Get pending approvals count for TL/CEO/Admin/GM/HR
+  const queryClient = useQueryClient();
+
+  // Query: Get pending approvals count for TL/CEO/Admin/GM/HR (refetchInterval removed)
   const { data: pettyCashPending } = useQuery({
     queryKey: ['pending-petty-cash'],
     queryFn: async () => {
@@ -59,7 +61,6 @@ export function Sidebar({ isCollapsed, onToggle }) {
       }) || [];
     },
     enabled: !!user && [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR].includes(role),
-    refetchInterval: 20000,
   });
 
   const { data: leavePending } = useQuery({
@@ -80,10 +81,16 @@ export function Sidebar({ isCollapsed, onToggle }) {
       }) || [];
     },
     enabled: !!user && [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR].includes(role),
-    refetchInterval: 20000,
   });
 
   const pendingApprovalsCount = (pettyCashPending?.length || 0) + (leavePending?.length || 0);
+
+  const handleToggle = () => {
+    onToggle();
+    // Manual query refresh trigger: user opens/collapses sidebar
+    queryClient.invalidateQueries({ queryKey: ['pending-petty-cash'] });
+    queryClient.invalidateQueries({ queryKey: ['pending-leaves'] });
+  };
 
   // Check if the current user can see analytics
   const canSeeAnalytics = ANALYTICS_ROLES.includes(role);
@@ -138,7 +145,7 @@ export function Sidebar({ isCollapsed, onToggle }) {
           </div>
         )}
         <button 
-          onClick={onToggle}
+          onClick={handleToggle}
           className="btn btn-ghost btn-circle btn-sm hover:bg-base-content/10 hidden md:flex text-base-content"
           title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
         >

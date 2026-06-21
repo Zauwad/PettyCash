@@ -20,11 +20,10 @@ export function Header({ onMenuToggle }) {
   const departmentName = user?.profile?.department?.name || 'Central Office';
   const roleDisplay = user?.profile?.role_display || user?.profile?.role;
 
-  // Query: Get notifications
+  // Query: Get notifications (no polling, event-based/manual refresh)
   const { data: notifications } = useQuery({
     queryKey: ['my-notifications'],
     queryFn: () => notificationsApi.list(),
-    refetchInterval: 25000, // Poll every 25s for updates
     enabled: !!user,
   });
 
@@ -59,29 +58,17 @@ export function Header({ onMenuToggle }) {
 
   return (
     <>
-      {/* Animation Styles */}
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes slideInRight {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
-        @keyframes fadeIn {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
-        .animate-slide-in-right {
-          animation: slideInRight 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .animate-fade-in {
-          animation: fadeIn 0.2s ease-out forwards;
-        }
-      `}} />
-
       <header className="h-16 border-b border-base-content/5 bg-base-100/50 backdrop-blur-md flex items-center justify-between px-6 z-20 sticky top-0">
         {/* Left items: mobile menu trigger & department summary */}
         <div className="flex items-center gap-3">
           <button 
-            onClick={onMenuToggle}
+            onClick={() => {
+              onMenuToggle();
+              // Invalidate notifications & pending lists when mobile drawer toggled
+              queryClient.invalidateQueries({ queryKey: ['pending-petty-cash'] });
+              queryClient.invalidateQueries({ queryKey: ['pending-leaves'] });
+              queryClient.invalidateQueries({ queryKey: ['my-notifications'] });
+            }}
             className="btn btn-ghost btn-circle btn-sm md:hidden text-base-content"
           >
             <Menu className="w-5 h-5" />
@@ -99,9 +86,12 @@ export function Header({ onMenuToggle }) {
             className="btn btn-ghost btn-circle btn-sm" 
           />
 
-          {/* Notification Bell Trigger */}
+          {/* Notification Bell Trigger (Manual refresh trigger: user clicks bell) */}
           <button 
-            onClick={() => setIsDrawerOpen(true)}
+            onClick={() => {
+              setIsDrawerOpen(true);
+              queryClient.invalidateQueries({ queryKey: ['my-notifications'] });
+            }}
             className="btn btn-ghost btn-circle btn-sm text-base-content/75 hover:bg-base-content/5 relative"
             title="Notifications Panel"
           >

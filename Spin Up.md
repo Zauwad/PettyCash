@@ -131,3 +131,134 @@ cd "f:\Work Stuff\A Maze\PettyCash\PettyCash\oms_frontend"
 npm run dev
 
 You can then access the application at http://localhost:5173.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Step 1: Start Databases (MySQL & Redis)
+Use Docker Compose:
+
+bash
+
+
+docker compose up -d
+Note: Configures database oms_db, user oms_user, and password oms_password automatically.
+
+Step 2: Spin Up Backend API
+Navigate to backend directory and create virtual environment:
+bash
+
+
+cd oms_backend
+python3 -m venv venv
+source venv/bin/activate
+Install Python dependencies:
+bash
+
+
+pip install -r requirements.txt
+Prepare .env file (copy from existing configuration or verify details match docker-compose.yml specs).
+Run migrations and seed data:
+bash
+
+
+python manage.py migrate
+python manage.py seed_data
+Run server via Daphne:
+bash
+
+
+daphne -b 0.0.0.0 -p 8000 oms_project.asgi:application
+Step 3: Run Celery Worker & Scheduler
+Keep backend virtual environment active. Open two new terminal tabs and run:
+
+Celery Worker:
+bash
+
+
+cd oms_backend
+source venv/bin/activate
+celery -A oms_project worker --loglevel=info
+Celery Beat:
+bash
+
+
+cd oms_backend
+source venv/bin/activate
+celery -A oms_project beat --loglevel=info
+Step 4: Run Frontend Client
+Navigate to frontend directory and install Node packages:
+bash
+
+
+cd oms_frontend
+npm install
+Start development server:
+bash
+
+
+npm run dev
+Open http://localhost:5173/ in your web browser.
+
+
+
+
+
+
+
+
+
+
+
+
+
+Use the repo’s actual local setup: Django dev settings, MySQL on 127.0.0.1:3306, Redis on 127.0.0.1:6379, frontend on Vite 5173.
+
+
+git clone <repo>
+cd PettyCash
+
+# 1) Start DB + Redis
+docker compose up -d
+
+
+# 2) Backend
+cd oms_backend
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python manage.py migrate
+python manage.py seed_data
+python manage.py runserver 0.0.0.0:8000
+
+
+# 3) Frontend
+cd ../oms_frontend
+npm install
+npm run dev
+
+What the repo actually expects
+
+manage.py and wsgi.py default to oms_project.settings.development
+backend env is MySQL + Redis, not SQLite
+oms_backend/.env is wired for DB_NAME/DB_USER/DB_PASSWORD/DB_HOST/DB_PORT plus CELERY_BROKER_URL and CELERY_RESULT_BACKEND
+frontend .env uses:
+VITE_API_URL=http://127.0.0.1:8000
+VITE_WS_URL=ws://127.0.0.1:8000
+Note: the current requirements.txt does not include the full ASGI/Celery stack from the marketing docs, so the practical local start is the Django dev server above.

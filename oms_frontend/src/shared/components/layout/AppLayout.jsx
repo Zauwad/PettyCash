@@ -1,12 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useOutlet, Link } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
 import { MobileNav } from './MobileNav';
 import { SpotlightNew } from '@/shared/components/ui/SpotlightNew';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { Zap, Plus, CalendarDays, CheckSquare, Users, X } from 'lucide-react';
+
 
 export function AppLayout() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -56,6 +58,15 @@ export function AppLayout() {
 
   const location = useLocation();
   const outlet = useOutlet();
+  const queryClient = useQueryClient();
+
+  // User navigates page refetch logic
+  useEffect(() => {
+    // Invalidate count states to keep dashboard/nav counters fresh without background polling
+    queryClient.invalidateQueries({ queryKey: ['pending-petty-cash'] });
+    queryClient.invalidateQueries({ queryKey: ['pending-leaves'] });
+    queryClient.invalidateQueries({ queryKey: ['my-notifications'] });
+  }, [location.pathname, queryClient]);
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-base-100 font-sans text-base-content overflow-hidden">
