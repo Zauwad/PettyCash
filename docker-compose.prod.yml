@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: oms_mysql_prod
+    restart: always
+    environment:
+      MYSQL_DATABASE: oms_db
+      MYSQL_USER: oms_user
+      MYSQL_PASSWORD: oms_password # Replace with a strong password
+      MYSQL_ROOT_PASSWORD: oms_root_password # Replace with a strong root password
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: oms_redis_prod
+    restart: always
+
+  backend:
+    build:
+      context: ./oms_backend
+      dockerfile: Dockerfile
+    container_name: oms_backend_prod
+    restart: always
+    env_file:
+      - ./oms_backend/.env
+    environment:
+      - DEBUG=False
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_NAME=oms_db
+      - DB_USER=oms_user
+      - DB_PASSWORD=oms_password # Must match MYSQL_PASSWORD
+      - REDIS_URL=redis://redis:6379/0
+      - CELERY_BROKER_URL=redis://redis:6379/1
+      - CELERY_RESULT_BACKEND=redis://redis:6379/1
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - django_static:/app/staticfiles
+      - django_media:/app/media
+
+  frontend:
+    build:
+      context: ./oms_frontend
+      dockerfile: Dockerfile
+    container_name: oms_frontend_prod
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    volumes:
+      - django_static:/usr/share/nginx/html/static:ro
+      - django_media:/usr/share/nginx/html/media:ro
+
+volumes:
+  mysql_data:
+  django_static:
+  django_media:

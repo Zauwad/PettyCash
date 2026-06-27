@@ -90,22 +90,23 @@ TEMPLATES = [
 WSGI_APPLICATION = 'oms_project.wsgi.application'
 ASGI_APPLICATION = 'oms_project.asgi.application'
 
-# Database Configuration (MySQL / SQLite Fallback on Vercel)
-if 'DATABASE_URL' in os.environ:
-    DATABASES = {
-        'default': env.db('DATABASE_URL')
-    }
-elif os.environ.get('VERCEL') == '1':
+# Database Configuration (SQLite on Vercel, otherwise MySQL/external)
+if os.environ.get('VERCEL') == '1':
     DATABASES = {
         'default': {
             'ENGINE': 'django.db.backends.sqlite3',
             'NAME': '/tmp/db.sqlite3',
         }
     }
+elif 'DATABASE_URL' in os.environ:
+    DATABASES = {
+        'default': env.db('DATABASE_URL')
+    }
 else:
     DATABASES = {
         'default': env.db('DATABASE_URL', default=f"mysql://{env('DB_USER')}:{env('DB_PASSWORD')}@{env('DB_HOST')}:{env('DB_PORT')}/{env('DB_NAME')}")
     }
+
 
 
 # Custom User Model

@@ -71,6 +71,24 @@ class DisbursementSerializer(serializers.ModelSerializer):
         read_only_fields = ['disbursed_by_name']
 
 
+class PettyCashListSerializer(serializers.ModelSerializer):
+    """
+    Lightweight serializer for PettyCashRequest list views.
+    Avoids loading line items, attachments, disbursements, or budget calculations.
+    """
+    requester_name = serializers.CharField(source='requester.get_full_name', read_only=True)
+    requester_username = serializers.CharField(source='requester.username', read_only=True)
+    department_name = serializers.CharField(source='department.name', default='Central Office', read_only=True)
+
+    class Meta:
+        model = PettyCashRequest
+        fields = [
+            'id', 'uuid', 'title', 'description', 'amount_requested', 'amount_approved', 
+            'amount_disbursed', 'state', 'priority', 'needed_by', 'created_at', 
+            'requester_name', 'requester_username', 'department_name'
+        ]
+
+
 class PettyCashRequestSerializer(serializers.ModelSerializer):
     """
     Comprehensive serializer for PettyCashRequest.

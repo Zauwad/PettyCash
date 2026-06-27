@@ -1,0 +1,7 @@
+venv/
+venv_win/
+db.sqlite3
+__pycache__/
+*.pyc
+.env.vercel
+.env.vercel.prod

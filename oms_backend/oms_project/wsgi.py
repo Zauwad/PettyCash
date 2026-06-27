@@ -22,14 +22,27 @@ if os.environ.get('VERCEL') == '1':
     db_conn = settings.DATABASES.get('default', {})
     if db_conn.get('ENGINE') == 'django.db.backends.sqlite3':
         db_path = db_conn.get('NAME')
-        if not os.path.exists(db_path) or os.path.getsize(db_path) == 0:
+        
+        # Check if we need to migrate
+        db_exists = os.path.exists(db_path) and os.path.getsize(db_path) > 0
+        if not db_exists:
             print("Vercel Cold Start: Initializing SQLite database...")
             from django.core.management import call_command
             try:
                 call_command('migrate', interactive=False)
-                call_command('seed_data', interactive=False)
-                print("Vercel Cold Start: Database initialized and seeded successfully!")
+                print("Vercel Cold Start: Database migrated successfully!")
             except Exception as e:
-                print(f"Vercel Cold Start Error: {e}")
+                print(f"Vercel Cold Start Migration Error: {e}")
+        
+        # Check if we need to seed (if no users exist)
+        from django.contrib.auth.models import User
+        try:
+            if not User.objects.exists():
+                print("Vercel Cold Start: Seeding database...")
+                from django.core.management import call_command
+                call_command('seed_data')
+                print("Vercel Cold Start: Database seeded successfully!")
+        except Exception as e:
+            print(f"Vercel Cold Start Seeding Error: {e}")
 
 application = get_wsgi_application()

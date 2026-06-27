@@ -24,52 +24,65 @@ export function DashboardPage() {
   // Stagger entrance hook for dashboard cards
   const containerRef = useGSAPStagger('.stagger-card', [role]);
 
-  // Query: CEO/Admin Executive Consolidated Dashboard Data
-  const { data: execDashboardData, isLoading: isSummaryLoading } = useQuery({
-    queryKey: ['exec-dashboard-data'],
-    queryFn: async () => {
-      const [summary, trends, burnRate] = await Promise.all([
-        analyticsApi.getSummary(),
-        analyticsApi.getSpendingTrends(),
-        analyticsApi.getBudgetBurnRate()
-      ]);
-      return { summary, trends, burnRate };
-    },
-    enabled: isExecutive,
+  // Query 1: Executive Summary Numbers (Immediate)
+  const { data: execSummary, isLoading: isSummaryLoading } = useQuery({
+    queryKey: ['executive-summary'],
+    queryFn: () => analyticsApi.getSummary(),
+    enabled: isExecutive && !!user,
   });
 
-  const execSummary = execDashboardData?.summary;
-  const spendingTrends = execDashboardData?.trends;
-  const budgetBurnRate = execDashboardData?.burnRate;
+  // Query 2: Executive Charts Data (Staggered - only after summary loads)
+  const { data: spendingTrends } = useQuery({
+    queryKey: ['executive-spending-trends'],
+    queryFn: () => analyticsApi.getSpendingTrends(),
+    enabled: isExecutive && !!execSummary,
+  });
 
-  // Query: Upcoming Absences for Team Lead, Manager, CEO, HR
+  const { data: budgetBurnRate } = useQuery({
+    queryKey: ['executive-budget-burn-rate'],
+    queryFn: () => analyticsApi.getBudgetBurnRate(),
+    enabled: isExecutive && !!execSummary,
+  });
+
+  // Query: Personal Petty Cash Requests for Stats (Immediate)
+  const { data: personalPettyCashData } = useQuery({
+    queryKey: ['dashboard-personal-petty-cash'],
+    queryFn: () => pettyCashApi.list({ only_self: 'true', page_size: 1 }),
+    enabled: !isExecutive && !!user,
+  });
+
+  // Query: Disbursed Petty Cash Requests for Spent Sum Stats (Immediate)
+  const { data: disbursedPettyCashData } = useQuery({
+    queryKey: ['dashboard-disbursed-petty-cash'],
+    queryFn: () => pettyCashApi.list({ only_self: 'true', state: 'disbursed', page_size: 100 }),
+    enabled: !isExecutive && !!user,
+  });
+
+  // Query: Personal Approved Leave Requests for Stats (Immediate)
+  const { data: personalLeaveData } = useQuery({
+    queryKey: ['dashboard-personal-leave-requests'],
+    queryFn: () => leaveApi.listRequests({ only_self: 'true', state: 'approved', page_size: 1 }),
+    enabled: !isExecutive && !!user,
+  });
+
+  // Determine when top widgets/stats are successfully loaded
+  const isTopSectionLoaded = isExecutive ? !!execSummary : !!personalPettyCashData;
+
+  // Query: Upcoming Absences (Staggered - only after top section loads)
   const { data: upcomingAbsences, isLoading: isUpcomingAbsencesLoading } = useQuery({
     queryKey: ['dashboard-upcoming-absences'],
     queryFn: () => analyticsApi.getUpcomingAbsences(),
-    enabled: !!user && isManagerOrExec,
+    enabled: !!user && isManagerOrExec && isTopSectionLoaded,
   });
 
-  // Query: Personal / Department Petty Cash Requests
+  // Query: Personal / Department Petty Cash Requests (Staggered - only after top section loads)
   const { data: pettyCashData, isLoading: isPettyCashLoading } = useQuery({
     queryKey: ['dashboard-petty-cash'],
     queryFn: () => pettyCashApi.list({ page_size: 5 }),
+    enabled: !!user && isTopSectionLoaded,
   });
 
-  // Query: Personal Petty Cash Requests for Stats
-  const { data: personalPettyCashData } = useQuery({
-    queryKey: ['dashboard-personal-petty-cash'],
-    queryFn: () => pettyCashApi.list({ only_self: 'true', page_size: 100 }),
-    enabled: !!user,
-  });
-
-  // Query: Personal Leave Requests for Stats
-  const { data: personalLeaveData } = useQuery({
-    queryKey: ['dashboard-personal-leave-requests'],
-    queryFn: () => leaveApi.listRequests({ only_self: 'true', page_size: 100 }),
-    enabled: !!user,
-  });
-
-  // Query: Personal Leave Balances & Requests Consolidated
+  // Query: Personal Leave Balances & Requests Consolidated (Staggered - only after top section loads)
   const { data: employeeDashboardData, isLoading: isEmployeeLoading } = useQuery({
     queryKey: ['employee-dashboard-data'],
     queryFn: async () => {
@@ -79,7 +92,7 @@ export function DashboardPage() {
       ]);
       return { balances, requests };
     },
-    enabled: !isExecutive && !!user,
+    enabled: !isExecutive && !!user && isTopSectionLoaded,
   });
 
   const leaveBalances = employeeDashboardData?.balances;
@@ -102,7 +115,7 @@ export function DashboardPage() {
       if (!lastPage.next) return undefined;
       return allPages.length + 1;
     },
-    enabled: !!user && ['TEAM_LEAD', 'GENERAL_MANAGER', 'CEO', 'ADMIN', 'HR'].includes(role),
+    enabled: !!user && ['TEAM_LEAD', 'GENERAL_MANAGER', 'CEO', 'ADMIN', 'HR'].includes(role) && isTopSectionLoaded,
   });
 
   const allActivities = infiniteActivities?.pages?.flatMap(page => page.results || []) || [];
@@ -124,13 +137,12 @@ export function DashboardPage() {
 
   // Employee-scoped stat counters
   const totalPettyCashCount = personalPettyCashData?.count || 0;
-  const totalPettyCashSpent = personalPettyCashData?.results
-    ?.filter(r => ['disbursed', 'partially_disbursed'].includes(r.state))
-    ?.reduce((sum, r) => sum + parseFloat(r.amount_disbursed), 0) || 0;
+  const totalPettyCashSpent = disbursedPettyCashData?.results
+    ?.reduce((sum, r) => sum + parseFloat(r.amount_disbursed || r.amount_requested || 0), 0) || 0;
   const personalPettyCashSpentRef = useGSAPCounter(totalPettyCashSpent, [totalPettyCashSpent], { prefix: '৳' });
   const personalPettyCashCountRef = useGSAPCounter(totalPettyCashCount, [totalPettyCashCount]);
 
-  const activeLeavesCount = personalLeaveData?.results?.filter(r => r.state === 'approved')?.length || 0;
+  const activeLeavesCount = personalLeaveData?.count || 0;
   const activeLeavesCountRef = useGSAPCounter(activeLeavesCount, [activeLeavesCount]);
 
   // Compute available budget for employee's department

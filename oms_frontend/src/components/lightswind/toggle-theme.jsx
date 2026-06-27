@@ -34,12 +34,28 @@ export const ToggleTheme = ({
             return;
         }
 
+        // Temporarily disable CSS transitions during view transition to prevent rendering lag
+        const style = document.createElement("style");
+        style.type = "text/css";
+        style.appendChild(document.createTextNode(`
+            * {
+                transition: none !important;
+            }
+        `));
+        document.head.appendChild(style);
+
         // Wait for the DOM update to complete within the View Transition
-        await document.startViewTransition(() => {
+        const transition = document.startViewTransition(() => {
             flushSync(() => {
                 toggleDarkMode();
             });
-        }).ready;
+        });
+
+        transition.finished.finally(() => {
+            style.remove();
+        });
+
+        await transition.ready;
 
         // Calculate coordinates and dimensions for spatial animations
         const { top, left, width, height } =

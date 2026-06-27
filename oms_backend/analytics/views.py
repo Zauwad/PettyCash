@@ -99,7 +99,12 @@ class AnalyticsViewSet(OrganizationViewSetMixin, viewsets.ViewSet):
             state='approved',
             start_date__lte=thirty_days_later,
             end_date__gte=today
-        ).select_related('requester__profile', 'leave_type')
+        ).select_related('requester__profile__department', 'leave_type').only(
+            'id', 'start_date', 'end_date', 'working_days_requested',
+            'leave_type__name',
+            'requester__username', 'requester__first_name', 'requester__last_name',
+            'requester__profile__id', 'requester__profile__department__id', 'requester__profile__department__name'
+        )
         
         return Response(LeaveAbsenceSerializer(upcoming, many=True).data)
 

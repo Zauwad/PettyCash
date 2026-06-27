@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAuth } from '@/features/auth/hooks/useAuth';
 import { useQuery } from '@tanstack/react-query';
@@ -42,7 +42,7 @@ export function PettyCashListPage() {
   const [scopeTab, setScopeTab] = useState('org');
 
   // Fetch Petty Cash requests
-  const filterParams = { page };
+  const filterParams = { page, page_size: 10 };
   if (activeTab !== 'all') filterParams.state = activeTab;
   if (priorityVal !== 'all') filterParams.priority = priorityVal;
   if (searchVal) filterParams.search = searchVal;
@@ -50,10 +50,22 @@ export function PettyCashListPage() {
     filterParams.only_self = 'true';
   }
 
-  const { data: requisitions, isLoading, isError } = useQuery({
+  const { data: requisitions, isLoading, isError, error } = useQuery({
     queryKey: ['petty-cash-list', filterParams, scopeTab],
     queryFn: () => pettyCashApi.list(filterParams),
+    retry: false,
   });
+
+  // Automatically reset to page 1 if the requested page is out of range (404)
+  useEffect(() => {
+    if (isError && error?.response?.status === 404 && page > 1) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('page', '1');
+        return next;
+      });
+    }
+  }, [isError, error, page, setSearchParams]);
 
   // Stagger items entrance
   const listRef = useGSAPStagger('.requisition-card', [requisitions?.results]);
@@ -256,7 +268,7 @@ export function PettyCashListPage() {
             {/* Requisitions Grid */}
             {isLoading ? (
               <LoadingSkeleton variant="card" count={3} />
-            ) : isError ? (
+            ) : (isError && error?.response?.status !== 404) ? (
               <div className="alert alert-error rounded-2xl flex items-start gap-4">
                 <AlertTriangle className="w-6 h-6 mt-0.5 text-error-content" />
                 <div>
@@ -265,67 +277,129 @@ export function PettyCashListPage() {
                 </div>
               </div>
             ) : requisitions?.results?.length > 0 ? (
-              <div ref={listRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {requisitions.results.map((req) => (
-                  <div 
-                    key={req.id} 
-                    onClick={() => setSelectedReqState(req)}
-                    className="requisition-card glass-panel rounded-2xl p-6 shadow-md hover:shadow-xl hover:-translate-y-0.5 cursor-pointer transition-all duration-300 border border-base-content/5 flex flex-col justify-between h-56 group relative overflow-hidden"
-                  >
-                    {/* Glowing card border gradient on hover */}
-                    <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
+              <div className="space-y-8">
+                <div ref={listRef} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {requisitions.results.map((req) => (
+                    <div 
+                      key={req.id} 
+                      onClick={() => setSelectedReqState(req)}
+                      className="requisition-card glass-panel rounded-2xl p-6 shadow-md hover:shadow-xl hover:-translate-y-0.5 cursor-pointer transition-all duration-300 border border-base-content/5 flex flex-col justify-between h-56 group relative overflow-hidden"
+                    >
+                      {/* Glowing card border gradient on hover */}
+                      <div className="absolute inset-0 bg-linear-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"></div>
 
-                    <div className="space-y-3 relative z-10">
-                      <div className="flex justify-between items-start gap-2">
-                        <StatusBadge state={req.state} />
-                        <Badge 
-                          variant={
-                            req.priority === 'URGENT' || req.priority === 'HIGH'
-                              ? 'destructive' 
-                              : req.priority === 'MEDIUM'
-                              ? 'secondary'
-                              : 'outline'
-                          }
-                          className="font-bold text-[10px] px-2 py-0.5 rounded"
-                        >
-                          {req.priority}
-                        </Badge>
+                      <div className="space-y-3 relative z-10">
+                        <div className="flex justify-between items-start gap-2">
+                          <StatusBadge state={req.state} />
+                          <Badge 
+                            variant={
+                              req.priority === 'URGENT' || req.priority === 'HIGH'
+                                ? 'destructive' 
+                                : req.priority === 'MEDIUM'
+                                ? 'secondary'
+                                : 'outline'
+                            }
+                            className="font-bold text-[10px] px-2 py-0.5 rounded"
+                          >
+                            {req.priority}
+                          </Badge>
+                        </div>
+
+                        <div className="space-y-1">
+                          <Link 
+                            to={`/petty-cash/${req.uuid}`} 
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-base font-extrabold text-base-content hover:text-primary transition-colors truncate block Outfit"
+                          >
+                            {req.title}
+                          </Link>
+                          <p className="text-xs text-base-content/50 line-clamp-2 leading-relaxed">
+                            {req.description}
+                          </p>
+                        </div>
                       </div>
 
-                      <div className="space-y-1">
-                        <Link 
-                          to={`/petty-cash/${req.uuid}`} 
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-base font-extrabold text-base-content hover:text-primary transition-colors truncate block Outfit"
-                        >
-                          {req.title}
-                        </Link>
-                        <p className="text-xs text-base-content/50 line-clamp-2 leading-relaxed">
-                          {req.description}
-                        </p>
+                      <div className="border-t border-base-content/5 pt-4 flex justify-between items-center relative z-10">
+                        <div>
+                          <p className="text-[10px] uppercase font-bold text-base-content/40 tracking-wider">Amount Requested</p>
+                          <h4 className="text-lg font-black Outfit text-primary">
+                            ৳{parseFloat(req.amount_requested).toLocaleString()}
+                          </h4>
+                        </div>
+
+                        <div className="text-right">
+                          <p className="text-[9px] uppercase font-black text-base-content/40 tracking-widest">Needed By</p>
+                          <p className="text-xs font-semibold text-base-content/75 mt-0.5">
+                            {new Date(req.needed_by).toLocaleDateString('en-US', {
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
                       </div>
                     </div>
+                  ))}
+                </div>
 
-                    <div className="border-t border-base-content/5 pt-4 flex justify-between items-center relative z-10">
-                      <div>
-                        <p className="text-[10px] uppercase font-bold text-base-content/40 tracking-wider">Amount Requested</p>
-                        <h4 className="text-lg font-black Outfit text-primary">
-                          ৳{parseFloat(req.amount_requested).toLocaleString()}
-                        </h4>
-                      </div>
+                {/* Pagination */}
+                {requisitions?.count > 10 && (
+                  <div className="flex justify-center items-center gap-2 mt-8 flex-wrap">
+                    <button
+                      disabled={page === 1}
+                      onClick={() => setSearchParams(prev => {
+                        const next = new URLSearchParams(prev);
+                        next.set('page', String(page - 1));
+                        return next;
+                      })}
+                      className="btn btn-outline btn-sm rounded-lg border-base-content/10 text-xs"
+                    >
+                      Previous
+                    </button>
 
-                      <div className="text-right">
-                        <p className="text-[9px] uppercase font-black text-base-content/40 tracking-widest">Needed By</p>
-                        <p className="text-xs font-semibold text-base-content/75 mt-0.5">
-                          {new Date(req.needed_by).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                        </p>
-                      </div>
-                    </div>
+                    {Array.from({ length: Math.ceil(requisitions.count / 10) }, (_, i) => i + 1).map((p) => {
+                      const totalPages = Math.ceil(requisitions.count / 10);
+                      if (p === 1 || p === totalPages || Math.abs(p - page) <= 2) {
+                        return (
+                          <button
+                            key={p}
+                            onClick={() => setSearchParams(prev => {
+                              const next = new URLSearchParams(prev);
+                              next.set('page', String(p));
+                              return next;
+                            })}
+                            className={`btn btn-sm rounded-lg text-xs px-3 ${
+                              page === p
+                                ? 'btn-primary font-bold shadow'
+                                : 'btn-outline border-base-content/10 text-base-content/75 hover:bg-base-content/5'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        );
+                      }
+                      if (p === 2 || p === totalPages - 1) {
+                        return (
+                          <span key={p} className="text-xs text-base-content/40 px-1 font-bold">
+                            ...
+                          </span>
+                        );
+                      }
+                      return null;
+                    })}
+
+                    <button
+                      disabled={page >= Math.ceil(requisitions.count / 10)}
+                      onClick={() => setSearchParams(prev => {
+                        const next = new URLSearchParams(prev);
+                        next.set('page', String(page + 1));
+                        return next;
+                      })}
+                      className="btn btn-outline btn-sm rounded-lg border-base-content/10 text-xs"
+                    >
+                      Next
+                    </button>
                   </div>
-                ))}
+                )}
               </div>
             ) : (
               <EmptyState

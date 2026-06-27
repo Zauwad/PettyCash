@@ -114,7 +114,7 @@ export function LeaveListPage() {
   const [scopeTab, setScopeTab] = useState('org');
 
   // Filter parameters
-  const filterParams = { page };
+  const filterParams = { page, page_size: 10 };
   if (activeTab !== 'all') filterParams.state = activeTab;
   if (searchVal) filterParams.search = searchVal;
   if (isManagerOrLead && scopeTab === 'my') {
@@ -122,10 +122,22 @@ export function LeaveListPage() {
   }
 
   // Query: Leave requests list
-  const { data: requests, isLoading, isError } = useQuery({
+  const { data: requests, isLoading, isError, error } = useQuery({
     queryKey: ['leave-requests-list', filterParams, scopeTab],
     queryFn: () => leaveApi.listRequests(filterParams),
+    retry: false,
   });
+
+  // Automatically reset to page 1 if the requested page is out of range (404)
+  useEffect(() => {
+    if (isError && error?.response?.status === 404 && page > 1) {
+      setSearchParams(prev => {
+        const next = new URLSearchParams(prev);
+        next.set('page', '1');
+        return next;
+      });
+    }
+  }, [isError, error, page, setSearchParams]);
 
   // Query: Leave Balances
   const { data: balances, isLoading: isBalancesLoading } = useQuery({
@@ -482,7 +494,7 @@ export function LeaveListPage() {
               {/* Requests grid */}
               {isLoading ? (
                 <LoadingSkeleton variant="table" count={3} />
-              ) : isError ? (
+              ) : (isError && error?.response?.status !== 404) ? (
                 <div className="alert alert-error rounded-2xl flex items-start gap-4">
                   <AlertCircle className="w-6 h-6 mt-0.5 text-error-content" />
                   <div>
@@ -553,8 +565,8 @@ export function LeaveListPage() {
               )}
 
               {/* Pagination */}
-              {requests?.count > 20 && (
-                <div className="flex justify-center gap-2 mt-8">
+              {requests?.count > 10 && (
+                <div className="flex justify-center items-center gap-2 mt-8 flex-wrap">
                   <button
                     disabled={page === 1}
                     onClick={() => setSearchParams(prev => {
@@ -566,11 +578,40 @@ export function LeaveListPage() {
                   >
                     Previous
                   </button>
-                  <span className="self-center text-xs font-semibold text-base-content/60 px-4">
-                    Page {page} of {Math.ceil(requests.count / 20)}
-                  </span>
+
+                  {Array.from({ length: Math.ceil(requests.count / 10) }, (_, i) => i + 1).map((p) => {
+                    const totalPages = Math.ceil(requests.count / 10);
+                    if (p === 1 || p === totalPages || Math.abs(p - page) <= 2) {
+                      return (
+                        <button
+                          key={p}
+                          onClick={() => setSearchParams(prev => {
+                            const next = new URLSearchParams(prev);
+                            next.set('page', String(p));
+                            return next;
+                          })}
+                          className={`btn btn-sm rounded-lg text-xs px-3 ${
+                            page === p
+                              ? 'btn-primary font-bold shadow'
+                              : 'btn-outline border-base-content/10 text-base-content/75 hover:bg-base-content/5'
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      );
+                    }
+                    if (p === 2 || p === totalPages - 1) {
+                      return (
+                        <span key={p} className="text-xs text-base-content/40 px-1 font-bold">
+                          ...
+                        </span>
+                      );
+                    }
+                    return null;
+                  })}
+
                   <button
-                    disabled={page >= Math.ceil(requests.count / 20)}
+                    disabled={page >= Math.ceil(requests.count / 10)}
                     onClick={() => setSearchParams(prev => {
                       const next = new URLSearchParams(prev);
                       next.set('page', String(page + 1));

@@ -17,6 +17,7 @@ from accounts.models import UserRole
 from pettycash.models import PettyCashRequest, PettyCashLineItem, Attachment, Disbursement
 from pettycash.serializers import (
     PettyCashRequestSerializer,
+    PettyCashListSerializer,
     AttachmentSerializer,
     DisbursementSerializer
 )
@@ -40,6 +41,11 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     serializer_class = PettyCashRequestSerializer
     permission_classes = [IsAuthenticated, IsOrganizationMember]
     lookup_field = 'uuid'
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return PettyCashListSerializer
+        return PettyCashRequestSerializer
     
     filterset_fields = ['state', 'priority', 'department']
     search_fields = ['title', 'description', 'requester__username', 'requester__email']
@@ -50,6 +56,10 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
         
         if not user or user.is_anonymous:
             return queryset.none()
+            
+        if self.action == 'list':
+            # Clear all prefetches since PettyCashListSerializer doesn't serialize line items/attachments
+            queryset = queryset.prefetch_related(None).select_related('requester', 'department')
             
         role = user.profile.role
         
