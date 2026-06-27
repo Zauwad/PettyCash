@@ -110,14 +110,20 @@ export function LeaveListPage() {
 
 
 
+  const isManagerOrLead = ['TEAM_LEAD', 'HR', 'GENERAL_MANAGER'].includes(user?.profile?.role);
+  const [scopeTab, setScopeTab] = useState('org');
+
   // Filter parameters
   const filterParams = { page };
   if (activeTab !== 'all') filterParams.state = activeTab;
   if (searchVal) filterParams.search = searchVal;
+  if (isManagerOrLead && scopeTab === 'my') {
+    filterParams.only_self = 'true';
+  }
 
   // Query: Leave requests list
   const { data: requests, isLoading, isError } = useQuery({
-    queryKey: ['leave-requests-list', filterParams],
+    queryKey: ['leave-requests-list', filterParams, scopeTab],
     queryFn: () => leaveApi.listRequests(filterParams),
   });
 
@@ -396,13 +402,54 @@ export function LeaveListPage() {
         {view === 'list' && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Left side: Requests queue */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className={`${isCEO ? 'lg:col-span-3' : 'lg:col-span-2'} space-y-6`}>
               <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
                 <SearchInput 
                   value={searchVal}
                   onSearch={handleSearch}
                   placeholder="Search reasons, delegate names..."
                 />
+
+                {isManagerOrLead && (
+                  <div className="flex bg-base-200/60 p-1 rounded-xl border border-base-content/5 shrink-0 max-w-fit shadow-inner">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScopeTab('org');
+                        setSearchParams(prev => {
+                          const next = new URLSearchParams(prev);
+                          next.set('page', '1');
+                          return next;
+                        });
+                      }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        scopeTab === 'org'
+                          ? 'bg-secondary text-secondary-content shadow font-black'
+                          : 'text-base-content/60 hover:text-base-content hover:bg-base-content/5'
+                      }`}
+                    >
+                      Organization Requests
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScopeTab('my');
+                        setSearchParams(prev => {
+                          const next = new URLSearchParams(prev);
+                          next.set('page', '1');
+                          return next;
+                        });
+                      }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        scopeTab === 'my'
+                          ? 'bg-secondary text-secondary-content shadow font-black'
+                          : 'text-base-content/60 hover:text-base-content hover:bg-base-content/5'
+                      }`}
+                    >
+                      My Requests
+                    </button>
+                  </div>
+                )}
               </div>
 
               {/* Status tabs */}
@@ -538,47 +585,49 @@ export function LeaveListPage() {
             </div>
 
             {/* Right side: Detailed Balances */}
-            <div className="space-y-6">
-              <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
-                <div>
-                  <h3 className="text-lg font-bold Outfit">My Leave Balances</h3>
-                  <p className="text-xs text-base-content/50">Allocations and remaining balances for {new Date().getFullYear()}</p>
-                </div>
+            {!isCEO && (
+              <div className="space-y-6">
+                <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
+                  <div>
+                    <h3 className="text-lg font-bold Outfit">My Leave Balances</h3>
+                    <p className="text-xs text-base-content/50">Allocations and remaining balances for {new Date().getFullYear()}</p>
+                  </div>
 
-                {isBalancesLoading ? (
-                  <LoadingSkeleton variant="table" count={3} />
-                ) : balances && balances.length > 0 ? (
-                  <div className="space-y-5">
-                    {balances.map((bal) => {
-                      const avail = parseFloat(bal.available);
-                      const alloc = parseFloat(bal.total_allocated);
-                      
-                      return (
-                        <div key={bal.id} className="space-y-2">
-                          <div className="flex justify-between items-center text-xs">
-                            <span className="font-bold text-base-content">{bal.leave_type_details?.name}</span>
-                            <span className="text-secondary font-black">{bal.available} / {bal.total_allocated} Days</span>
+                  {isBalancesLoading ? (
+                    <LoadingSkeleton variant="table" count={3} />
+                  ) : balances && balances.length > 0 ? (
+                    <div className="space-y-5">
+                      {balances.map((bal) => {
+                        const avail = parseFloat(bal.available);
+                        const alloc = parseFloat(bal.total_allocated);
+                        
+                        return (
+                          <div key={bal.id} className="space-y-2">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-base-content">{bal.leave_type_details?.name}</span>
+                              <span className="text-secondary font-black">{bal.available} / {bal.total_allocated} Days</span>
+                            </div>
+                            <progress
+                              className="progress progress-secondary w-full h-2 rounded-full"
+                              value={alloc - avail}
+                              max={alloc}
+                            ></progress>
+                            <div className="flex justify-between text-[9px] text-base-content/40 font-bold uppercase">
+                              <span>Used: {bal.used} days</span>
+                              <span>Pending: {bal.pending} days</span>
+                            </div>
                           </div>
-                          <progress
-                            className="progress progress-secondary w-full h-2 rounded-full"
-                            value={alloc - avail}
-                            max={alloc}
-                          ></progress>
-                          <div className="flex justify-between text-[9px] text-base-content/40 font-bold uppercase">
-                            <span>Used: {bal.used} days</span>
-                            <span>Pending: {bal.pending} days</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center p-6 text-xs text-base-content/35 font-medium border border-dashed border-base-content/10 rounded-xl">
-                    No leave balances allocated for this year.
-                  </div>
-                )}
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center p-6 text-xs text-base-content/35 font-medium border border-dashed border-base-content/10 rounded-xl">
+                      No leave balances allocated for this year.
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 

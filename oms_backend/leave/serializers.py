@@ -85,6 +85,11 @@ class LeaveRequestSerializer(serializers.ModelSerializer):
         ]
 
     def get_activity_log(self, obj):
+        # Skip fetching activity logs on list action to avoid N+1 queries
+        view = self.context.get('view')
+        if view and getattr(view, 'action', None) == 'list':
+            return []
+
         from core.models import AuditLog
         from core.serializers import AuditLogSerializer
         logs = AuditLog.objects.filter(target_type='LeaveRequest', target_id=obj.id).order_by('created_at')

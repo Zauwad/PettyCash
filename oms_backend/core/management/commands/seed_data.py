@@ -35,7 +35,8 @@ class Command(BaseCommand):
             seed_usernames.append(f"{org_slug}_gm")
             seed_usernames.append(f"{org_slug}_hr")
             seed_usernames.append(f"{org_slug}_lead")
-            for dept_slug in ["eng", "mkt", "hr", "fin", "des"]:
+            all_dept_slugs = ["eng", "mkt", "hr", "fin", "des", "vent", "creative", "growth", "ai", "ops", "prod", "sales", "net", "support", "logistics"]
+            for dept_slug in all_dept_slugs:
                 seed_usernames.append(f"{org_slug}_{dept_slug}_lead")
                 seed_usernames.append(f"{org_slug}_{dept_slug}_emp1")
                 seed_usernames.append(f"{org_slug}_{dept_slug}_emp2")
@@ -48,16 +49,54 @@ class Command(BaseCommand):
     def seed_all(self):
         orgs = Organization.objects.filter(slug__in=["amaze", "mynt", "braincount"])
         
-        # High and varied budget spent configuration
-        dept_configs = [
-            {"name": "Engineering", "code": "eng", "budget": 600000.00, "spent": 450000.00, "limit": 25000.00},
-            {"name": "Marketing", "code": "mkt", "budget": 200000.00, "spent": 170000.00, "limit": 10000.00},
-            {"name": "HR & Operations", "code": "hr", "budget": 150000.00, "spent": 165000.00, "limit": 8000.00}, # 110% Over-utilized!
-            {"name": "Designing", "code": "des", "budget": 300000.00, "spent": 30000.00, "limit": 15000.00},
-        ]
+        # Org specific configurations
+        org_configs = {
+            "amaze": {
+                "depts": [
+                    {"name": "Venture Development", "code": "vent", "budget": 500000.00, "spent": 300000.00, "limit": 20000.00},
+                    {"name": "Creative Studio", "code": "creative", "budget": 250000.00, "spent": 220000.00, "limit": 12000.00},
+                    {"name": "People & Culture", "code": "hr", "budget": 100000.00, "spent": 65000.00, "limit": 6000.00},
+                    {"name": "Strategy & Growth", "code": "growth", "budget": 150000.00, "spent": 145000.00, "limit": 10000.00},
+                ],
+                "emp_names": {
+                    "vent": [("Developer", "Venture"), ("Analyst", "Venture")],
+                    "creative": [("Jane", "Creative"), ("John", "Designer")],
+                    "hr": [("Sarah", "People Manager"), ("Mike", "Recruiter")],
+                    "growth": [("Dave", "Growth Lead"), ("Emma", "Marketing Exec")],
+                }
+            },
+            "braincount": {
+                "depts": [
+                    {"name": "AI Research", "code": "ai", "budget": 800000.00, "spent": 750000.00, "limit": 40000.00},
+                    {"name": "Infrastructure & Ops", "code": "ops", "budget": 400000.00, "spent": 210000.00, "limit": 20000.00},
+                    {"name": "Product Management", "code": "prod", "budget": 200000.00, "spent": 180000.00, "limit": 15000.00},
+                    {"name": "Sales & Partnerships", "code": "sales", "budget": 300000.00, "spent": 310000.00, "limit": 18000.00},
+                ],
+                "emp_names": {
+                    "ai": [("Dr. Alan", "Scientist"), ("Nate", "ML Engineer")],
+                    "ops": [("Linus", "DevOps Lead"), ("Alice", "Cloud Architect")],
+                    "prod": [("Jessica", "Product Owner"), ("Sam", "UX Specialist")],
+                    "sales": [("Gordon", "Enterprise Rep"), ("Kelly", "Partnerships Lead")],
+                }
+            },
+            "mynt": {
+                "depts": [
+                    {"name": "Network Engineering", "code": "net", "budget": 700000.00, "spent": 400000.00, "limit": 30000.00},
+                    {"name": "Customer Relations", "code": "support", "budget": 150000.00, "spent": 140000.00, "limit": 7000.00},
+                    {"name": "Finance & Admin", "code": "fin", "budget": 120000.00, "spent": 110000.00, "limit": 8000.00},
+                    {"name": "Hardware Logistics", "code": "logistics", "budget": 250000.00, "spent": 280000.00, "limit": 12000.00},
+                ],
+                "emp_names": {
+                    "net": [("Kabir", "Telecom Architect"), ("Rashed", "NOC Operator")],
+                    "support": [("Fahim", "Support Lead"), ("Nadia", "Success Agent")],
+                    "fin": [("Anis", "Controller"), ("Shirin", "Accountant")],
+                    "logistics": [("Jamil", "Logistics Mgr"), ("Tarek", "Procurement Exec")],
+                }
+            }
+        }
 
         leave_configs = [
-            {"name": "Annual Leave", "code": "ANNUAL", "days": 24, "neg": False},
+            {"name": "Annual Leave", "code": "ANNUAL", "days": 14, "neg": False},
             {"name": "Sick Leave", "code": "SICK", "days": 10, "neg": True},
             {"name": "Maternity Leave", "code": "MATERNITY", "days": 120, "neg": False},
             {"name": "Paternity Leave", "code": "PATERNITY", "days": 10, "neg": False},
@@ -66,6 +105,9 @@ class Command(BaseCommand):
 
         for org in orgs:
             self.stdout.write(f"Seeding organization: {org.name}...")
+            config = org_configs.get(org.slug)
+            if not config:
+                continue
             
             # 1. Seed Company Holidays for 2026
             self.seed_holidays(org)
@@ -90,7 +132,7 @@ class Command(BaseCommand):
                 username=f"{org.slug}_ceo",
                 email=f"ceo@{org.slug}.com",
                 password="password123",
-                first_name="CEO",
+                first_name=f"{org.name} CEO",
                 last_name=""
             )
             UserProfile.objects.create(
@@ -105,7 +147,7 @@ class Command(BaseCommand):
                 username=f"{org.slug}_admin",
                 email=f"admin@{org.slug}.com",
                 password="password123",
-                first_name="Admin",
+                first_name=f"{org.name} Admin",
                 last_name=""
             )
             UserProfile.objects.create(
@@ -120,7 +162,7 @@ class Command(BaseCommand):
                 username=f"{org.slug}_gm",
                 email=f"gm@{org.slug}.com",
                 password="password123",
-                first_name="Manager",
+                first_name=f"{org.name} GM",
                 last_name=""
             )
             UserProfile.objects.create(
@@ -136,7 +178,7 @@ class Command(BaseCommand):
                 username=f"{org.slug}_hr",
                 email=f"hr@{org.slug}.com",
                 password="password123",
-                first_name="HR",
+                first_name=f"{org.name} HR",
                 last_name=""
             )
             UserProfile.objects.create(
@@ -153,7 +195,7 @@ class Command(BaseCommand):
                 username=f"{org.slug}_lead",
                 email=f"lead@{org.slug}.com",
                 password="password123",
-                first_name="Team Lead",
+                first_name=f"{org.name} Lead",
                 last_name=""
             )
             UserProfile.objects.create(
@@ -166,7 +208,7 @@ class Command(BaseCommand):
             self.initialize_balances(tl_user, leave_types)
 
             # 5. Seed Departments and Employees
-            for dc in dept_configs:
+            for dc in config["depts"]:
                 dept = Department.objects.create(
                     organization=org,
                     name=dc["name"],
@@ -177,21 +219,8 @@ class Command(BaseCommand):
 
                 # Employees
                 for emp_num in [1, 2]:
-                    if dc['code'] == 'des':
-                        first_name = "Jane" if emp_num == 1 else "John"
-                        last_name = "UI/UX Designer" if emp_num == 1 else "Visual Designer"
-                    elif dc['code'] == 'eng':
-                        first_name = "Engineer"
-                        last_name = f"Number {emp_num}"
-                    elif dc['code'] == 'mkt':
-                        first_name = "Marketer"
-                        last_name = f"Number {emp_num}"
-                    elif dc['code'] == 'hr':
-                        first_name = "HR Specialist"
-                        last_name = f"Number {emp_num}"
-                    else:
-                        first_name = f"{dc['name']}"
-                        last_name = f"Number {emp_num}"
+                    names = config["emp_names"].get(dc["code"], [("Employee", str(emp_num))])
+                    first_name, last_name = names[emp_num - 1]
 
                     emp_user = User.objects.create_user(
                         username=f"{org.slug}_{dc['code']}_emp{emp_num}",
@@ -213,6 +242,9 @@ class Command(BaseCommand):
                     # 6. Seed sample Petty Cash and Leave Requests
                     self.seed_sample_requests(org, dept, emp_user, tl_user, ceo_user)
             
+            # 6.5 Seed Manager-authored requests (Lead, HR, GM)
+            self.seed_manager_requests(org, gm_user, hr_user, tl_user, ceo_user)
+
             # 7. Seed Historic Disbursements (spending trends data over 12 months)
             self.seed_historic_disbursements(org, ceo_user)
 
@@ -302,7 +334,6 @@ class Command(BaseCommand):
         """Generates sample workflows across states."""
         # Use employee name / dept name to vary titles
         emp_name = employee.first_name + " " + employee.last_name
-        dept_code = dept.name.split(" ")[0]
         
         # Get HR user for assigning HR disbursement fields
         hr_profile = UserProfile.objects.filter(organization=org, role=UserRole.HR).first()
@@ -312,14 +343,169 @@ class Command(BaseCommand):
         gm_profile = UserProfile.objects.filter(organization=org, role=UserRole.GENERAL_MANAGER).first()
         gm_user = gm_profile.user if gm_profile else ceo
 
+        # Determine department code based on name to fetch custom templates
+        name_lower = dept.name.lower()
+        if "venture" in name_lower:
+            dept_code = "vent"
+        elif "creative" in name_lower:
+            dept_code = "creative"
+        elif "people" in name_lower or "culture" in name_lower:
+            dept_code = "hr"
+        elif "strategy" in name_lower or "growth" in name_lower:
+            dept_code = "growth"
+        elif "research" in name_lower or "ai" in name_lower:
+            dept_code = "ai"
+        elif "infrastructure" in name_lower or "ops" in name_lower:
+            dept_code = "ops"
+        elif "product" in name_lower:
+            dept_code = "prod"
+        elif "sales" in name_lower:
+            dept_code = "sales"
+        elif "network" in name_lower:
+            dept_code = "net"
+        elif "customer" in name_lower or "relations" in name_lower:
+            dept_code = "support"
+        elif "finance" in name_lower or "admin" in name_lower:
+            dept_code = "fin"
+        elif "logistics" in name_lower:
+            dept_code = "logistics"
+        else:
+            dept_code = "vent"
+
+        # Department specific real-world petty cash details
+        petty_cash_templates = {
+            "vent": {
+                "draft": ("Draft - AWS hosting credits purchase", "Purchasing testing server credits.", 4500.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Figma Professional team plan renewal", "Renewing team licenses for designers.", 9200.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Purchase of domain name portfolio", "Buying brand domains for the new venture launch.", 30000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Integration API service subscription", "Subscription for maps and messaging APIs.", 2500.00, "Office Supplies"),
+                "partial": ("Partial Payout - GitHub Enterprise seats upgrade", "Upgrading GitHub team seats for external contractors.", 15000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Premium stock video package", "Purchase of video elements for pitch deck.", 8500.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Extra testing mobile devices", "Buying two low-end Android testing phones.", 28000.00, "Equipment"),
+                "cancelled": ("Cancelled - Wireframing stencil kit purchase", "Requisition for paper prototyping stencils.", 1200.00, "Office Supplies"),
+            },
+            "creative": {
+                "draft": ("Draft - Adobe Stock assets license", "Buying high-res graphic assets.", 3000.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Camera lens rental for brand shoot", "Renting 85mm f/1.4 lens for portrait shoot.", 12000.00, "Equipment"),
+                "pending_ceo": ("Pending CEO - Wacom graphics tablet replacement", "Replacing broken Wacom Intuos tablet.", 22000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Font license for client project", "Web and print license for custom typeface.", 4500.00, "Office Supplies"),
+                "partial": ("Partial Payout - Studio lighting equipment lease", "Leasing background softboxes for the recording studio.", 18000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Hand-painted background board", "Hand-painted boards for physical product photoshoot.", 7000.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Designer desk lamp purchase", "Buying premium desk lamp for color-grading desk.", 5000.00, "Office Supplies"),
+                "cancelled": ("Cancelled - Premium sketchbook supply request", "Buying notebooks for storyboard sketching.", 1500.00, "Office Supplies"),
+            },
+            "hr": {
+                "draft": ("Draft - Employee birthday gift cards", "Procuring gift vouchers for next month birthdays.", 2000.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Job posting board package", "BDJobs posting package for recruitment.", 8000.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Team building workshop speaker fee", "Paying external speaker for quarterly team workshop.", 25000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Office medicine box refills", "Restocking first aid kit supplies.", 1800.00, "Office Supplies"),
+                "partial": ("Partial Payout - Ergonomic keyboard testing batch", "Buying sample keyboards to test for engineering teams.", 10000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Premium desk plant setup", "Greenery setup for common lounge area.", 6500.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Executive coaching session", "Coaching consultation fee.", 20000.00, "Equipment"),
+                "cancelled": ("Cancelled - Custom company stickers print", "Printing branded stickers for new hires.", 3000.00, "Office Supplies"),
+            },
+            "growth": {
+                "draft": ("Draft - Search ads campaign setup", "Setting up Google Search Ads for product launch.", 5000.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Competitor analytics tool access", "Subscribing to SEMRush API access for audit.", 7500.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Business pitch deck design printing", "Printing glossy portfolios for foreign delegates.", 15000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Retargeting platform credits", "Buying ad credits for LinkedIn campaign.", 3200.00, "Office Supplies"),
+                "partial": ("Partial Payout - B2B lead generation tool subscription", "Subscribing to Apollo email sequencing service.", 12000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - LinkedIn premium sales navigator", "Sales navigator seats for team lead.", 8500.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Client dinner at upscale restaurant", "Dinner hosting for international client reps.", 18000.00, "Office Supplies"),
+                "cancelled": ("Cancelled - Custom roll-up banner printing", "Promotional banners for conference booth.", 4000.00, "Office Supplies"),
+            },
+            "ai": {
+                "draft": ("Draft - Kaggle competition entry fee", "Team registration fee.", 3500.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Hugging Face API premium usage", "Inference costs for dataset testing.", 14500.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - RunPod GPU renting credits", "Buying cloud GPU computing hours.", 48000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - OpenAI API token usage billing", "API token usage charge for model fine-tuning.", 8200.00, "Office Supplies"),
+                "partial": ("Partial Payout - Overleaf team subscription", "Annual team subscription for LaTeX report writing.", 11000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Custom mechanical keyboards", "Buying mechanical keyboards for AI engineers.", 16000.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Dedicated GPU cooling fan setup", "Liquid cooling replacement setup for test rig.", 25000.00, "Equipment"),
+                "cancelled": ("Cancelled - Python AI programming books", "Ordering latest reference guides from Amazon.", 4200.00, "Office Supplies"),
+            },
+            "ops": {
+                "draft": ("Draft - SSL certificate renewal", "Buying wildcard SSL certs.", 2500.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Backup storage hard drives", "2TB SSDs for network data store.", 9800.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Server rack replacement hardware", "Installing server cabinet rails.", 36000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Domain registration renewal", "Renewing key brand domain names.", 1900.00, "Office Supplies"),
+                "partial": ("Partial Payout - Grafana dashboard seats", "Grafana premium monitoring platform subscription.", 12000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Smart rack temperature sensor", "Smart monitoring sensor.", 6000.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Server maintenance toolkit", "Pro toolkit containing crimpers and cabling tools.", 14000.00, "Equipment"),
+                "cancelled": ("Cancelled - Cabling organizer sleeves bulk", "Ordering cable routing ties.", 1500.00, "Office Supplies"),
+            },
+            "prod": {
+                "draft": ("Draft - User testing compensation voucher", "Paying test group participants.", 3000.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Prototyping tool subscription", "Framer/UXPin team seat subscription.", 6500.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Customer feedback tracking platform", "Subscription fee for feature request board.", 20000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Product mockups presentation tools", "Purchasing device mockup templates.", 2800.00, "Office Supplies"),
+                "partial": ("Partial Payout - Product analytics dashboard", "Mixpanel/Amplitude monthly track quota.", 15000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Premium whiteboards for meeting room", "New writing boards.", 8000.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Interactive whiteboard smart screen", "Touchscreen smart board.", 45000.00, "Equipment"),
+                "cancelled": ("Cancelled - Sticky notes whiteboard magnetic tags", "Product planning sticky kit.", 1200.00, "Office Supplies"),
+            },
+            "sales": {
+                "draft": ("Draft - Business card printing order", "Printing cards for business developers.", 1500.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Industry database list purchase", "Buying validated B2B email database.", 12000.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Trade show booths sponsorship deposit", "Deposit for booking booth space.", 50000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Client presentation folder printing", "Printing folders for sales meetings.", 3500.00, "Office Supplies"),
+                "partial": ("Partial Payout - CRM email sequencing software", "CRM integration addon tools.", 14000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Sales pitch coaching program", "External sales trainer retainer.", 15000.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Premium client gift hampers", "Buying chocolate baskets for top-tier partners.", 24000.00, "Office Supplies"),
+                "cancelled": ("Cancelled - Promotional branded pens supply", "Custom engraved pens.", 3500.00, "Office Supplies"),
+            },
+            "net": {
+                "draft": ("Draft - Cable tester device batteries", "Buying rechargeable batteries.", 800.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Fiber optic patching cables", "LC-LC single mode fiber cables.", 11000.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - High-capacity optical transceiver modules", "10G SFP+ modules for switch connections.", 42000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Server cage padlock replacement", "Replacing biometric locks.", 1200.00, "Office Supplies"),
+                "partial": ("Partial Payout - Network diagnostic device lease", "Leasing Fluke fiber analyzer equipment.", 20000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Network cable labeling tool", "Portable label printer.", 9500.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - High-end fiber fusion splicer kit", "Buying dedicated splicing machine.", 85000.00, "Equipment"),
+                "cancelled": ("Cancelled - Network rack storage tray request", "1U steel rack trays.", 3000.00, "Office Supplies"),
+            },
+            "support": {
+                "draft": ("Draft - Wireless headset foam replacement", "Replacement cushions for call center headsets.", 1200.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Call noise cancelling software", "Krisp noise cancellation team licenses.", 7200.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Customer ticketing system upgrade", "Zendesk/Freshdesk premium tier upgrade.", 28000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Call recording backup drives", "External drives for system log vault.", 4500.00, "Office Supplies"),
+                "partial": ("Partial Payout - Live chat widget integrations", "Installing customer support chat tools on site.", 10000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Ergonomic footrests for agents", "Footrests for desk comfort.", 5000.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Call center wall dashboard display", "Buying 55-inch monitoring smart TV.", 32000.00, "Equipment"),
+                "cancelled": ("Cancelled - Support desk custom keycaps", "Keycap customization order.", 1800.00, "Office Supplies"),
+            },
+            "fin": {
+                "draft": ("Draft - Invoice archiving box files", "Cardboard files for filing cabinet.", 1500.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Tax filing service portal access", "BD tax advisor premium membership.", 8500.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Audit consulting retainer payment", "Initial payment for external audit partners.", 60000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Paper shredder replacement", "Buying micro-cut office paper shredder.", 5500.00, "Office Supplies"),
+                "partial": ("Partial Payout - Fixed asset tagging label rolls", "Procuring QR labels for asset tracking.", 3000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Premium calculator upgrade", "Scientific accountancy calculators.", 2500.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Finance team leadership training course", "Enrolling team in certification course.", 18000.00, "Office Supplies"),
+                "cancelled": ("Cancelled - Custom stamp printing", "Official financial stamp.", 1200.00, "Office Supplies"),
+            },
+            "logistics": {
+                "draft": ("Draft - Warehouse barcode scanner replacement", "Procuring hand scanner.", 4500.00, "Office Supplies"),
+                "pending_tl": ("Pending TL - Bubble wrap and packing cartons", "Supply of shipping materials.", 9500.00, "Office Supplies"),
+                "pending_ceo": ("Pending CEO - Warehouse shelving racks installation", "Buying heavy-duty storage shelves.", 35000.00, "Equipment"),
+                "pending_hr": ("Pending Payout - Dispatch delivery packaging tape", "Procuring high-strength packaging tapes.", 2200.00, "Office Supplies"),
+                "partial": ("Partial Payout - Delivery tracking API integration", "Integrations with third party shipping logs.", 12000.00, "Equipment"),
+                "rejected_tl": ("Rejected TL - Heavy duty protective gloves", "Warehouse safety gears.", 3500.00, "Office Supplies"),
+                "rejected_ceo": ("Rejected CEO - Hand truck trolley upgrade request", "Ordering heavy steel platform hand truck.", 15000.00, "Equipment"),
+                "cancelled": ("Cancelled - Branded shipping box sample production", "Sample run of custom boxes.", 6000.00, "Office Supplies"),
+            }
+        }
+
+        t = petty_cash_templates.get(dept_code, petty_cash_templates["vent"])
+
         # 1. Petty Cash Request - Draft
         PettyCashRequest.objects.create(
             organization=org,
             department=dept,
             requester=employee,
-            title=f"Draft - {dept_code} office supplies",
-            description="Whiteboard markers, sticky notes, and drawing pens.",
-            amount_requested=1200.00,
+            title=t["draft"][0],
+            description=t["draft"][1],
+            amount_requested=t["draft"][2],
             state="draft",
             priority="LOW",
             needed_by=date.today() + timedelta(days=10)
@@ -330,19 +516,19 @@ class Command(BaseCommand):
             organization=org,
             department=dept,
             requester=employee,
-            title=f"Pending TL - Team lunch reimbursement",
-            description="Dinner for project release celebration.",
-            amount_requested=7500.00,
+            title=t["pending_tl"][0],
+            description=t["pending_tl"][1],
+            amount_requested=t["pending_tl"][2],
             state="pending_tl_approval",
             priority="MEDIUM",
             needed_by=date.today() + timedelta(days=3)
         )
         PettyCashLineItem.objects.create(
             request=pc_tl,
-            description="Team buffet dinner",
+            description=t["pending_tl"][0].split(" - ")[-1],
             quantity=1,
-            unit_price=7500.00,
-            category="Travel & Entertainment"
+            unit_price=t["pending_tl"][2],
+            category=t["pending_tl"][3]
         )
 
         # 3. Petty Cash Request - Pending CEO Approval
@@ -350,22 +536,22 @@ class Command(BaseCommand):
             organization=org,
             department=dept,
             requester=employee,
-            title=f"Pending CEO - Hardware Router upgrade",
-            description="Upgrading core router for high-speed connectivity.",
-            amount_requested=35000.00, # Exceeds TL limit
-            amount_approved=35000.00,
+            title=t["pending_ceo"][0],
+            description=t["pending_ceo"][1],
+            amount_requested=t["pending_ceo"][2],
+            amount_approved=t["pending_ceo"][2],
             state="pending_ceo_approval",
             priority="HIGH",
             needed_by=date.today() + timedelta(days=1),
-            tl_approved_amount=35000.00,
-            tl_approval_note="TL approved router replacement. Exceeds limit.",
+            tl_approved_amount=t["pending_ceo"][2],
+            tl_approval_note="Approved by TL. Routed to CEO.",
         )
         PettyCashLineItem.objects.create(
             request=pc_ceo,
-            description="CISCO dual-band router",
+            description=t["pending_ceo"][0].split(" - ")[-1],
             quantity=1,
-            unit_price=35000.00,
-            category="Equipment"
+            unit_price=t["pending_ceo"][2],
+            category=t["pending_ceo"][3]
         )
 
         # 4. Petty Cash Request - Pending HR Disbursement
@@ -373,24 +559,24 @@ class Command(BaseCommand):
             organization=org,
             department=dept,
             requester=employee,
-            title=f"Pending Payout - Client meeting drinks",
-            description="Beverages for critical stakeholders.",
-            amount_requested=3500.00,
-            amount_approved=3500.00,
+            title=t["pending_hr"][0],
+            description=t["pending_hr"][1],
+            amount_requested=t["pending_hr"][2],
+            amount_approved=t["pending_hr"][2],
             state="pending_hr_disbursement",
             priority="MEDIUM",
             needed_by=date.today(),
-            tl_approved_amount=3500.00,
+            tl_approved_amount=t["pending_hr"][2],
             tl_approval_note="Approved.",
-            ceo_approved_amount=3500.00,
+            ceo_approved_amount=t["pending_hr"][2],
             ceo_approval_note="Approved.",
         )
         PettyCashLineItem.objects.create(
             request=pc_hr,
-            description="Juices and sodas for meeting",
+            description=t["pending_hr"][0].split(" - ")[-1],
             quantity=1,
-            unit_price=3500.00,
-            category="Office Supplies"
+            unit_price=t["pending_hr"][2],
+            category=t["pending_hr"][3]
         )
 
         # 5. Petty Cash Request - Partially Disbursed
@@ -398,25 +584,25 @@ class Command(BaseCommand):
             organization=org,
             department=dept,
             requester=employee,
-            title=f"Partial Payout - Software subscription",
-            description="Annual tools subscription.",
-            amount_requested=15000.00,
-            amount_approved=15000.00,
+            title=t["partial"][0],
+            description=t["partial"][1],
+            amount_requested=t["partial"][2],
+            amount_approved=t["partial"][2],
             amount_disbursed=5000.00,
             state="partially_disbursed",
             priority="HIGH",
             needed_by=date.today(),
-            tl_approved_amount=15000.00,
+            tl_approved_amount=t["partial"][2],
             tl_approval_note="Approved.",
-            ceo_approved_amount=15000.00,
+            ceo_approved_amount=t["partial"][2],
             ceo_approval_note="Approved.",
         )
         PettyCashLineItem.objects.create(
             request=pc_partial,
-            description="Dev Tools Suite License",
+            description=t["partial"][0].split(" - ")[-1],
             quantity=1,
-            unit_price=15000.00,
-            category="Equipment"
+            unit_price=t["partial"][2],
+            category=t["partial"][3]
         )
         # Add disbursement log for partial payment
         Disbursement.objects.create(
@@ -433,13 +619,13 @@ class Command(BaseCommand):
             organization=org,
             department=dept,
             requester=employee,
-            title=f"Rejected TL - Unplanned event budget",
-            description="Snacks for team retreat.",
-            amount_requested=9000.00,
+            title=t["rejected_tl"][0],
+            description=t["rejected_tl"][1],
+            amount_requested=t["rejected_tl"][2],
             state="rejected",
             priority="MEDIUM",
             needed_by=date.today(),
-            rejection_reason="Snacks are not covered under department budget this week."
+            rejection_reason="Snacks and premium decorative additions are not covered under department budget this cycle."
         )
 
         # 7. Petty Cash Request - Rejected by CEO
@@ -447,15 +633,15 @@ class Command(BaseCommand):
             organization=org,
             department=dept,
             requester=employee,
-            title=f"Rejected CEO - Premium furniture purchase",
-            description="Ergonomic leather chair.",
-            amount_requested=18000.00,
+            title=t["rejected_ceo"][0],
+            description=t["rejected_ceo"][1],
+            amount_requested=t["rejected_ceo"][2],
             state="rejected_by_ceo",
             priority="LOW",
             needed_by=date.today(),
-            tl_approved_amount=18000.00,
-            tl_approval_note="TL approved.",
-            rejection_reason="Ergonomic leather chairs are out of scope."
+            tl_approved_amount=t["rejected_ceo"][2],
+            tl_approval_note="Approved by Team Lead.",
+            rejection_reason="Out of scope for current budget priorities. Denied by CEO."
         )
 
         # 8. Petty Cash Request - Cancelled
@@ -463,9 +649,9 @@ class Command(BaseCommand):
             organization=org,
             department=dept,
             requester=employee,
-            title=f"Cancelled - Travel booking placeholder",
-            description="Requisition cancelled by requester.",
-            amount_requested=4500.00,
+            title=t["cancelled"][0],
+            description=t["cancelled"][1],
+            amount_requested=t["cancelled"][2],
             state="cancelled",
             priority="LOW",
             needed_by=date.today()
@@ -475,6 +661,40 @@ class Command(BaseCommand):
         lt_annual = LeaveType.objects.get(organization=org, code="ANNUAL")
         lt_sick = LeaveType.objects.get(organization=org, code="SICK")
         
+        # Varied leave reason templates based on department code to keep data organic
+        leave_reasons = {
+            "vent": {
+                "draft": "Planned annual family vacation to Sundarbans.",
+                "pending_tl": "Recovering from severe wisdom tooth extraction and dental surgery.",
+                "pending_gm": "Attending sibling's wedding ceremony and related family events.",
+                "approved": "Personal family emergency - traveling to my hometown.",
+                "rejected": "Attending standard tech meetup events."
+            },
+            "creative": {
+                "draft": "Going on a family trip to Sylhet tea gardens.",
+                "pending_tl": "Severe food poisoning recovery and resting as prescribed.",
+                "pending_gm": "Taking time off to manage home relocation and packing.",
+                "approved": "Viral fever recovery and rest.",
+                "rejected": "Personal leisure week off."
+            },
+            "hr": {
+                "draft": "Planned annual vacation to Saint Martin.",
+                "pending_tl": "Severe throat infection and doctor recommended voice rest.",
+                "pending_gm": "Attending child's school admission tests and board meetings.",
+                "approved": "Family medical emergency.",
+                "rejected": "Off-season leisure break."
+            },
+            "growth": {
+                "draft": "Planned vacation to Bandarban hills.",
+                "pending_tl": "Sprained ankle from weekend sports - doctor advised resting.",
+                "pending_gm": "Attending close cousin's wedding registry.",
+                "approved": "Urgent travel to my hometown for parents' checkup.",
+                "rejected": "Taking time off during marketing campaign launch week."
+            }
+        }
+        
+        lr_t = leave_reasons.get(dept_code, leave_reasons["vent"])
+
         # 1. Leave - Draft
         LeaveRequest.objects.create(
             organization=org,
@@ -483,7 +703,7 @@ class Command(BaseCommand):
             start_date=date.today() + timedelta(days=30),
             end_date=date.today() + timedelta(days=35),
             working_days_requested=5.0,
-            reason="Planned vacation next month.",
+            reason=lr_t["draft"],
             state="draft"
         )
         
@@ -495,7 +715,7 @@ class Command(BaseCommand):
             start_date=date.today() + timedelta(days=5),
             end_date=date.today() + timedelta(days=6),
             working_days_requested=2.0,
-            reason="Medical checkup.",
+            reason=lr_t["pending_tl"],
             state="pending_tl_approval"
         )
 
@@ -507,11 +727,11 @@ class Command(BaseCommand):
             start_date=date.today() + timedelta(days=15),
             end_date=date.today() + timedelta(days=19),
             working_days_requested=4.0,
-            reason="Family gathering.",
+            reason=lr_t["pending_gm"],
             state="pending_gm_approval",
             tl_approved_start_date=date.today() + timedelta(days=15),
             tl_approved_end_date=date.today() + timedelta(days=19),
-            tl_approval_note="Approved by TL.",
+            tl_approval_note="Department tasks covered. Approved by TL.",
         )
 
         # 4. Leave - Approved (out on leave wrapping today)
@@ -522,14 +742,14 @@ class Command(BaseCommand):
             start_date=date.today() - timedelta(days=1),
             end_date=date.today() + timedelta(days=2),
             working_days_requested=3.0,
-            reason="Urgent personal matters.",
+            reason=lr_t["approved"],
             state="approved",
             tl_approved_start_date=date.today() - timedelta(days=1),
             tl_approved_end_date=date.today() + timedelta(days=2),
-            tl_approval_note="TL approved.",
+            tl_approval_note="Approved.",
             gm_approved_start_date=date.today() - timedelta(days=1),
             gm_approved_end_date=date.today() + timedelta(days=2),
-            gm_approval_note="GM approved."
+            gm_approval_note="Approved."
         )
 
         # 5. Leave - Rejected
@@ -540,9 +760,9 @@ class Command(BaseCommand):
             start_date=date.today() + timedelta(days=12),
             end_date=date.today() + timedelta(days=14),
             working_days_requested=2.0,
-            reason="Leisure trip.",
+            reason=lr_t["rejected"],
             state="rejected",
-            rejection_reason="Peak department project release timeline. Leave denied."
+            rejection_reason="Timeline clashes with critical department launch/project release cycle. Denied."
         )
 
         # --- Audit Logs & Notifications (Timeline Activity population) ---
@@ -703,3 +923,262 @@ class Command(BaseCommand):
                     action_url=action_url,
                     defaults={'is_read': True}
                 )
+
+    def seed_manager_requests(self, org, gm, hr, tl, ceo):
+        """Seeds realistic personal requests sent by the Team Lead, HR, and GM themselves."""
+        from pettycash.models import PettyCashRequest, PettyCashLineItem, Disbursement
+        from leave.models import LeaveRequest, LeaveType
+        
+        # Get standard leave types
+        lt_annual = LeaveType.objects.get(organization=org, code="ANNUAL")
+        lt_sick = LeaveType.objects.get(organization=org, code="SICK")
+        first_dept = org.departments.first()
+
+        # 1. Requests for Team Lead (tl)
+        # Petty Cash
+        pc_tl_pending = PettyCashRequest.objects.create(
+            organization=org,
+            department=first_dept,
+            requester=tl,
+            title="Pending CEO - Figma Professional team plan renewal",
+            description="Figma seats renewal for design collaboration and venture specs.",
+            amount_requested=14500.00,
+            amount_approved=14500.00,
+            state="pending_ceo_approval",
+            priority="HIGH",
+            needed_by=date.today() + timedelta(days=2),
+            tl_approved_amount=14500.00,
+            tl_approval_note="TL approved self-request (system auto-routing)."
+        )
+        PettyCashLineItem.objects.create(
+            request=pc_tl_pending,
+            description="Figma Professional seats",
+            quantity=1,
+            unit_price=14500.00,
+            category="Office Supplies"
+        )
+        pc_tl_disbursed = PettyCashRequest.objects.create(
+            organization=org,
+            department=first_dept,
+            requester=tl,
+            title="Disbursed - Tech reference books for project space",
+            description="Standard database design and system architecture books.",
+            amount_requested=4800.00,
+            amount_approved=4800.00,
+            amount_disbursed=4800.00,
+            state="disbursed",
+            priority="LOW",
+            needed_by=date.today() - timedelta(days=5),
+            tl_approved_amount=4800.00,
+            tl_approval_note="Approved.",
+            ceo_approved_amount=4800.00,
+            ceo_approval_note="Approved."
+        )
+        PettyCashLineItem.objects.create(
+            request=pc_tl_disbursed,
+            description="Technical reference textbooks",
+            quantity=1,
+            unit_price=4800.00,
+            category="Office Supplies"
+        )
+        Disbursement.objects.create(
+            request=pc_tl_disbursed,
+            disbursed_by=hr,
+            amount=4800.00,
+            payment_method="CASH",
+            reference_number=f"MGR-TL-{pc_tl_disbursed.id}",
+            notes="Disbursed."
+        )
+        # Leave
+        LeaveRequest.objects.create(
+            organization=org,
+            requester=tl,
+            leave_type=lt_sick,
+            start_date=date.today() + timedelta(days=7),
+            end_date=date.today() + timedelta(days=8),
+            working_days_requested=2.0,
+            reason="Scheduled wisdom tooth dental checkup.",
+            state="pending_gm_approval"
+        )
+        LeaveRequest.objects.create(
+            organization=org,
+            requester=tl,
+            leave_type=lt_annual,
+            start_date=date.today() - timedelta(days=10),
+            end_date=date.today() - timedelta(days=8),
+            working_days_requested=3.0,
+            reason="Sister's engagement ceremony family events.",
+            state="approved",
+            tl_approved_start_date=date.today() - timedelta(days=10),
+            tl_approved_end_date=date.today() - timedelta(days=8),
+            tl_approval_note="Auto-routed.",
+            gm_approved_start_date=date.today() - timedelta(days=10),
+            gm_approved_end_date=date.today() - timedelta(days=8),
+            gm_approval_note="Approved."
+        )
+
+        # 2. Requests for HR (hr)
+        # Petty Cash
+        pc_hr_pending = PettyCashRequest.objects.create(
+            organization=org,
+            department=first_dept,
+            requester=hr,
+            title="Pending CEO - HR portal recruitment package",
+            description="Job listings slots package.",
+            amount_requested=25000.00,
+            amount_approved=25000.00,
+            state="pending_ceo_approval",
+            priority="HIGH",
+            needed_by=date.today() + timedelta(days=4),
+            tl_approved_amount=25000.00,
+            tl_approval_note="Approved."
+        )
+        PettyCashLineItem.objects.create(
+            request=pc_hr_pending,
+            description="Recruitment listing slots",
+            quantity=1,
+            unit_price=25000.00,
+            category="Office Supplies"
+        )
+        pc_hr_disbursed = PettyCashRequest.objects.create(
+            organization=org,
+            department=first_dept,
+            requester=hr,
+            title="Disbursed - Welcome kit prints for new hires",
+            description="Branded cards, stickers, and notebook bindings.",
+            amount_requested=6200.00,
+            amount_approved=6200.00,
+            amount_disbursed=6200.00,
+            state="disbursed",
+            priority="LOW",
+            needed_by=date.today() - timedelta(days=10),
+            tl_approved_amount=6200.00,
+            tl_approval_note="Approved.",
+            ceo_approved_amount=6200.00,
+            ceo_approval_note="Approved."
+        )
+        PettyCashLineItem.objects.create(
+            request=pc_hr_disbursed,
+            description="Onboarding prints kit",
+            quantity=1,
+            unit_price=6200.00,
+            category="Office Supplies"
+        )
+        Disbursement.objects.create(
+            request=pc_hr_disbursed,
+            disbursed_by=ceo,
+            amount=6200.00,
+            payment_method="CASH",
+            reference_number=f"MGR-HR-{pc_hr_disbursed.id}",
+            notes="Disbursed."
+        )
+        # Leave
+        LeaveRequest.objects.create(
+            organization=org,
+            requester=hr,
+            leave_type=lt_annual,
+            start_date=date.today() + timedelta(days=20),
+            end_date=date.today() + timedelta(days=24),
+            working_days_requested=5.0,
+            reason="Family vacation trip to Sajek Valley.",
+            state="pending_gm_approval"
+        )
+        LeaveRequest.objects.create(
+            organization=org,
+            requester=hr,
+            leave_type=lt_sick,
+            start_date=date.today() - timedelta(days=5),
+            end_date=date.today() - timedelta(days=5),
+            working_days_requested=1.0,
+            reason="Severe migraine medical rest.",
+            state="approved",
+            tl_approved_start_date=date.today() - timedelta(days=5),
+            tl_approved_end_date=date.today() - timedelta(days=5),
+            tl_approval_note="Approved.",
+            gm_approved_start_date=date.today() - timedelta(days=5),
+            gm_approved_end_date=date.today() - timedelta(days=5),
+            gm_approval_note="Approved."
+        )
+
+        # 3. Requests for GM (gm)
+        # Petty Cash
+        pc_gm_pending = PettyCashRequest.objects.create(
+            organization=org,
+            department=first_dept,
+            requester=gm,
+            title="Pending CEO - Annual general meeting catering deposit",
+            description="Catering services advance booking fee.",
+            amount_requested=45000.00,
+            amount_approved=45000.00,
+            state="pending_ceo_approval",
+            priority="HIGH",
+            needed_by=date.today() + timedelta(days=5),
+            tl_approved_amount=45000.00,
+            tl_approval_note="Approved."
+        )
+        PettyCashLineItem.objects.create(
+            request=pc_gm_pending,
+            description="AGM catering booking advance",
+            quantity=1,
+            unit_price=45000.00,
+            category="Travel & Entertainment"
+        )
+        pc_gm_disbursed = PettyCashRequest.objects.create(
+            organization=org,
+            department=first_dept,
+            requester=gm,
+            title="Disbursed - Company legal registration notary stamp",
+            description="Official documentation notary fees.",
+            amount_requested=12000.00,
+            amount_approved=12000.00,
+            amount_disbursed=12000.00,
+            state="disbursed",
+            priority="MEDIUM",
+            needed_by=date.today() - timedelta(days=12),
+            tl_approved_amount=12000.00,
+            tl_approval_note="Approved.",
+            ceo_approved_amount=12000.00,
+            ceo_approval_note="Approved."
+        )
+        PettyCashLineItem.objects.create(
+            request=pc_gm_disbursed,
+            description="Notary stamp fees",
+            quantity=1,
+            unit_price=12000.00,
+            category="Office Supplies"
+        )
+        Disbursement.objects.create(
+            request=pc_gm_disbursed,
+            disbursed_by=hr,
+            amount=12000.00,
+            payment_method="CASH",
+            reference_number=f"MGR-GM-{pc_gm_disbursed.id}",
+            notes="Disbursed."
+        )
+        # Leave
+        LeaveRequest.objects.create(
+            organization=org,
+            requester=gm,
+            leave_type=lt_annual,
+            start_date=date.today() + timedelta(days=15),
+            end_date=date.today() + timedelta(days=19),
+            working_days_requested=5.0,
+            reason="Venture capital partner summit travel time off.",
+            state="pending_gm_approval"  # CEO approves GMs (mapped as pending GM in model state)
+        )
+        LeaveRequest.objects.create(
+            organization=org,
+            requester=gm,
+            leave_type=lt_annual,
+            start_date=date.today() - timedelta(days=6),
+            end_date=date.today() - timedelta(days=5),
+            working_days_requested=2.0,
+            reason="Family emergency home town visit.",
+            state="approved",
+            tl_approved_start_date=date.today() - timedelta(days=6),
+            tl_approved_end_date=date.today() - timedelta(days=5),
+            tl_approval_note="Approved.",
+            gm_approved_start_date=date.today() - timedelta(days=6),
+            gm_approved_end_date=date.today() - timedelta(days=5),
+            gm_approval_note="Approved."
+        )

@@ -225,6 +225,57 @@ class LeaveRequest(models.Model):
         """
         pass
 
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        self.sync_balances()
+
+    def delete(self, *args, **kwargs):
+        requester = self.requester
+        leave_type = self.leave_type
+        year = self.start_date.year
+        super().delete(*args, **kwargs)
+        self.sync_user_balance(requester, leave_type, year)
+
+    def sync_balances(self):
+        year = self.start_date.year
+        self.sync_user_balance(self.requester, self.leave_type, year)
+
+    @staticmethod
+    def sync_user_balance(user, leave_type, year):
+        from leave.models import LeaveBalance, LeaveRequest
+        from django.db.models import Sum
+        
+        balance, created = LeaveBalance.objects.get_or_create(
+            user=user,
+            leave_type=leave_type,
+            year=year,
+            defaults={
+                'total_allocated': float(leave_type.default_days_per_year),
+                'used': 0.0,
+                'pending': 0.0
+            }
+        )
+        
+        from decimal import Decimal
+        
+        used_sum = Decimal(str(LeaveRequest.objects.filter(
+            requester=user,
+            leave_type=leave_type,
+            start_date__year=year,
+            state='approved'
+        ).aggregate(total=Sum('working_days_requested'))['total'] or 0.0))
+        
+        pending_sum = Decimal(str(LeaveRequest.objects.filter(
+            requester=user,
+            leave_type=leave_type,
+            start_date__year=year,
+            state__in=['pending_tl_approval', 'pending_gm_approval']
+        ).aggregate(total=Sum('working_days_requested'))['total'] or 0.0))
+        
+        balance.used = used_sum
+        balance.pending = pending_sum
+        balance.save()
+
 
 class CompanyHoliday(models.Model):
     """

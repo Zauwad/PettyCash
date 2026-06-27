@@ -21,7 +21,7 @@ from pettycash.serializers import (
     DisbursementSerializer
 )
 
-from django.db.models import Q
+from django.db.models import Q, Prefetch
 from accounts.models import UserProfile
 
 class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
@@ -30,7 +30,13 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     Uses UUID lookup for standard API endpoints.
     Enforces tenant-isolation and FSM transition safety.
     """
-    queryset = PettyCashRequest.objects.all().prefetch_related('line_items', 'attachments', 'disbursements')
+    queryset = PettyCashRequest.objects.all().select_related(
+        'requester', 'department'
+    ).prefetch_related(
+        'line_items',
+        Prefetch('attachments', queryset=Attachment.objects.defer('file_data')),
+        'disbursements'
+    )
     serializer_class = PettyCashRequestSerializer
     permission_classes = [IsAuthenticated, IsOrganizationMember]
     lookup_field = 'uuid'
@@ -47,6 +53,10 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
             
         role = user.profile.role
         
+        only_self = self.request.query_params.get('only_self') == 'true'
+        if only_self:
+            return queryset.filter(requester=user)
+            
         if self.action == 'list':
             # Employee can only see their own requests
             if role == UserRole.EMPLOYEE:
@@ -58,6 +68,10 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                 return queryset
             
         # CEO / Admin / GENERAL_MANAGER / HR see all requests in the organization (handled by mixin)
+        exclude_self = self.request.query_params.get('exclude_self') == 'true'
+        if exclude_self:
+            queryset = queryset.exclude(requester=user)
+
         return queryset
 
     def create(self, request, *args, **kwargs):

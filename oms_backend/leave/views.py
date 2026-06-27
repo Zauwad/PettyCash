@@ -21,6 +21,7 @@ from leave.serializers import (
     WorkingDaysCalcSerializer
 )
 from leave.utils import calculate_working_days
+from pettycash.models import Attachment
 
 class LeaveTypeViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     """
@@ -38,10 +39,12 @@ class LeaveBalanceViewSet(OrganizationViewSetMixin, viewsets.ReadOnlyModelViewSe
     Tenancy is scoped through LeaveType relationship.
     Regular employees can only view their own balances.
     Managers/Admins can see all balances of their organization.
+    CEOs are excluded as they have no leave balance limits.
     """
-    queryset = LeaveBalance.objects.all().select_related('user', 'leave_type')
+    queryset = LeaveBalance.objects.all().select_related('user', 'leave_type').exclude(user__profile__role=UserRole.CEO)
     serializer_class = LeaveBalanceSerializer
     permission_classes = [IsAuthenticated, IsOrganizationMember]
+    pagination_class = None
     
     # Scope tenant through the leave_type relationship
     tenant_filter_path = "leave_type__organization"
@@ -58,6 +61,10 @@ class LeaveBalanceViewSet(OrganizationViewSetMixin, viewsets.ReadOnlyModelViewSe
             
         role = user.profile.role
         
+        # CEO should not have any balance preview/records
+        if role == UserRole.CEO:
+            return queryset.none()
+            
         # Determine the target year
         year_str = self.request.query_params.get('year')
         try:
@@ -75,12 +82,17 @@ class LeaveBalanceViewSet(OrganizationViewSetMixin, viewsets.ReadOnlyModelViewSe
             target_users = [user]
         elif user_id:
             try:
-                target_users = [AuthUser.objects.get(id=user_id)]
+                target_user = AuthUser.objects.get(id=user_id)
+                # Ensure we don't initialize for CEO
+                if target_user.profile.role != UserRole.CEO:
+                    target_users = [target_user]
             except AuthUser.DoesNotExist:
                 pass
         else:
-            target_users = [user]
-
+            # Only target non-CEO users
+            if role != UserRole.CEO:
+                target_users = [user]
+        
         # Auto-initialize balances for target users
         from leave.utils import get_or_create_leave_balance
         for u in target_users:
@@ -92,6 +104,10 @@ class LeaveBalanceViewSet(OrganizationViewSetMixin, viewsets.ReadOnlyModelViewSe
             return queryset.filter(user=user)
         if user_id:
             return queryset.filter(user_id=user_id)
+            
+        # If user_id is not provided, non-admin roles should only see their own balances
+        if role != UserRole.ADMIN:
+            return queryset.filter(user=user)
             
         return queryset
 
@@ -112,7 +128,11 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
     ViewSet to manage individual Leave Requests.
     Uses UUID lookup. Scopes list views to role permissions.
     """
-    queryset = LeaveRequest.objects.all().select_related('requester', 'leave_type', 'delegate_to')
+    queryset = LeaveRequest.objects.all().select_related(
+        'requester', 'leave_type', 'delegate_to'
+    ).prefetch_related(
+        models.Prefetch('attachments', queryset=Attachment.objects.defer('file_data'))
+    )
     serializer_class = LeaveRequestSerializer
     permission_classes = [IsAuthenticated, IsOrganizationMember]
     lookup_field = 'uuid'
@@ -128,6 +148,10 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
             
         role = user.profile.role
         
+        only_self = self.request.query_params.get('only_self') == 'true'
+        if only_self:
+            return queryset.filter(requester=user)
+            
         if self.action == 'list':
             # Employee can only see their own requests
             if role == UserRole.EMPLOYEE:
@@ -139,6 +163,10 @@ class LeaveRequestViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                 return queryset
             
         # CEO / Admin see all requests in the organization (handled by mixin)
+        exclude_self = self.request.query_params.get('exclude_self') == 'true'
+        if exclude_self:
+            queryset = queryset.exclude(requester=user)
+
         return queryset
 
     def create(self, request, *args, **kwargs):

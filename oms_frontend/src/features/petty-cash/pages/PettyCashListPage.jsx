@@ -38,14 +38,20 @@ export function PettyCashListPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [setSelectedReq, setSelectedReqState] = useState(null);
 
+  const isManagerOrLead = ['TEAM_LEAD', 'HR', 'GENERAL_MANAGER'].includes(user?.profile?.role);
+  const [scopeTab, setScopeTab] = useState('org');
+
   // Fetch Petty Cash requests
   const filterParams = { page };
   if (activeTab !== 'all') filterParams.state = activeTab;
   if (priorityVal !== 'all') filterParams.priority = priorityVal;
   if (searchVal) filterParams.search = searchVal;
+  if (isManagerOrLead && scopeTab === 'my') {
+    filterParams.only_self = 'true';
+  }
 
   const { data: requisitions, isLoading, isError } = useQuery({
-    queryKey: ['petty-cash-list', filterParams],
+    queryKey: ['petty-cash-list', filterParams, scopeTab],
     queryFn: () => pettyCashApi.list(filterParams),
   });
 
@@ -151,7 +157,48 @@ export function PettyCashListPage() {
               />
 
               {/* Priority & Filters */}
-              <div className="flex gap-3">
+              <div className="flex gap-3 items-center flex-wrap">
+                {isManagerOrLead && (
+                  <div className="flex bg-base-200/60 p-1 rounded-xl border border-base-content/5 shadow-inner">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScopeTab('org');
+                        setSearchParams(prev => {
+                          const next = new URLSearchParams(prev);
+                          next.set('page', '1');
+                          return next;
+                        });
+                      }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        scopeTab === 'org'
+                          ? 'bg-secondary text-secondary-content shadow font-black'
+                          : 'text-base-content/60 hover:text-base-content hover:bg-base-content/5'
+                      }`}
+                    >
+                      Organization Requests
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setScopeTab('my');
+                        setSearchParams(prev => {
+                          const next = new URLSearchParams(prev);
+                          next.set('page', '1');
+                          return next;
+                        });
+                      }}
+                      className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                        scopeTab === 'my'
+                          ? 'bg-secondary text-secondary-content shadow font-black'
+                          : 'text-base-content/60 hover:text-base-content hover:bg-base-content/5'
+                      }`}
+                    >
+                      My Requests
+                    </button>
+                  </div>
+                )}
+
                 <Select
                   value={priorityVal}
                   onChange={handlePriorityFilter}

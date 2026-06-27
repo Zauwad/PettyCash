@@ -53,43 +53,40 @@ export function ApprovalCenterPage() {
   const { data: pettyCashPending, isLoading: isPettyCashLoading } = useQuery({
     queryKey: ['pending-petty-cash'],
     queryFn: async () => {
-      const res = await pettyCashApi.list({ page_size: 100 });
-      return res.results?.filter(r => {
-        const isOwner = r.requester_email === user?.email;
-        if (isOwner) return false;
-
-        if (isTL) {
-          return r.state === 'pending_tl_approval';
-        }
-        if (isCEO || isAdmin) {
-          return r.state === 'pending_ceo_approval';
-        }
-        if (isHR) {
-          return r.state === 'pending_hr_disbursement' || r.state === 'partially_disbursed';
-        }
-        return false;
-      }) || [];
+      let results = [];
+      if (isTL) {
+        const res = await pettyCashApi.list({ state: 'pending_tl_approval', page_size: 100, exclude_self: 'true' });
+        results = res.results || [];
+      } else if (isCEO || isAdmin) {
+        const res = await pettyCashApi.list({ state: 'pending_ceo_approval', page_size: 100, exclude_self: 'true' });
+        results = res.results || [];
+      } else if (isHR) {
+        const [res1, res2] = await Promise.all([
+          pettyCashApi.list({ state: 'pending_hr_disbursement', page_size: 100, exclude_self: 'true' }),
+          pettyCashApi.list({ state: 'partially_disbursed', page_size: 100, exclude_self: 'true' })
+        ]);
+        results = [...(res1.results || []), ...(res2.results || [])];
+      }
+      return results;
     },
+    enabled: !!user && (isTL || isCEO || isAdmin || isHR),
   });
 
   // Fetch Leave requests in pending states
   const { data: leavePending, isLoading: isLeaveLoading } = useQuery({
     queryKey: ['pending-leaves'],
     queryFn: async () => {
-      const res = await leaveApi.listRequests({ page_size: 100 });
-      return res.results?.filter(r => {
-        const isOwner = r.requester_name === user?.first_name + ' ' + (user?.last_name || '') || r.requester_name === user?.username;
-        if (isOwner) return false;
-
-        if (isTL) {
-          return r.state === 'pending_tl_approval';
-        }
-        if (isGM) {
-          return r.state === 'pending_gm_approval';
-        }
-        return false;
-      }) || [];
+      let results = [];
+      if (isTL) {
+        const res = await leaveApi.listRequests({ state: 'pending_tl_approval', page_size: 100, exclude_self: 'true' });
+        results = res.results || [];
+      } else if (isGM) {
+        const res = await leaveApi.listRequests({ state: 'pending_gm_approval', page_size: 100, exclude_self: 'true' });
+        results = res.results || [];
+      }
+      return results;
     },
+    enabled: !!user && (isTL || isGM),
   });
 
   // Mutation: Approve Petty Cash

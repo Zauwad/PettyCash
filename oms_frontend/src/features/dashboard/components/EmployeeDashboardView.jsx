@@ -100,19 +100,18 @@ export function EmployeeDashboardView({
       )}
 
       {/* Main Content Layout Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left / Middle: Activity or Charts */}
-        <div className="lg:col-span-2 space-y-8">
-          {/* Recent Activity Timeline Feed (Managers/Admins/HR) */}
-          {isManagerOrExec && (
-            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4">
-              <div className="flex items-center justify-between">
+      {isManagerOrExec ? (
+        <div className="space-y-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Column 1: Recent Activity */}
+            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl flex flex-col h-[520px]">
+              <div className="flex items-center justify-between pb-3 border-b border-base-content/5 shrink-0">
                 <h3 className="text-lg font-bold Outfit">Recent Activity</h3>
                 <span className="text-[10px] text-base-content/40 font-bold uppercase tracking-wider">Live Feed</span>
               </div>
 
               {isActivitiesLoading ? (
-                <div className="space-y-3 pt-2">
+                <div className="space-y-3 pt-4 flex-1">
                   <div className="h-10 bg-base-300/40 animate-pulse rounded-xl"></div>
                   <div className="h-10 bg-base-300/40 animate-pulse rounded-xl"></div>
                   <div className="h-10 bg-base-300/40 animate-pulse rounded-xl"></div>
@@ -120,7 +119,7 @@ export function EmployeeDashboardView({
               ) : allActivities.length > 0 ? (
                 <div 
                   onScroll={handleScroll}
-                  className="flow-root pt-2 max-h-96 overflow-y-auto pr-2 scrollbar-thin"
+                  className="flow-root pt-2 flex-1 overflow-y-auto pr-2 scrollbar-thin mt-4"
                 >
                   <ul className="mb-4">
                     {allActivities.map((activity, idx) => {
@@ -181,15 +180,157 @@ export function EmployeeDashboardView({
                   )}
                 </div>
               ) : (
-                <div className="text-center py-6 text-xs text-base-content/35 font-semibold">
+                <div className="text-center py-12 text-xs text-base-content/35 font-semibold flex-1 flex items-center justify-center">
                   No activities recorded.
                 </div>
               )}
             </div>
-          )}
 
-          {/* Employee: Recent Petty Cash Requisitions */}
-          {!isManagerOrExec && (
+            {/* Column 2: Upcoming Leaves */}
+            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl flex flex-col h-[520px]">
+              <div className="flex items-center gap-3 border-b border-base-content/5 pb-3 shrink-0">
+                <div className="bg-secondary/10 p-2.5 rounded-lg text-secondary">
+                  <CalendarDays className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold Outfit">Upcoming Leaves</h3>
+                  <p className="text-[10px] text-base-content/40 uppercase font-black tracking-wider">Next 30 Days</p>
+                </div>
+              </div>
+
+              {isUpcomingAbsencesLoading ? (
+                <div className="space-y-3 pt-4 flex-1">
+                  <div className="h-12 bg-base-300/40 animate-pulse rounded-xl"></div>
+                  <div className="h-12 bg-base-300/40 animate-pulse rounded-xl"></div>
+                </div>
+              ) : upcomingAbsences && upcomingAbsences.length > 0 ? (
+                <div className="pt-2 flex-1 overflow-y-auto pr-1 scrollbar-thin mt-4 space-y-3">
+                  {upcomingAbsences.map((abs) => {
+                    const userDetails = abs.requester_details;
+                    const deptName = userDetails?.profile?.department?.name || 'Central Office';
+                    return (
+                      <div key={abs.id} className="p-3 bg-base-300/30 rounded-xl border border-base-content/5 space-y-2">
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h4 className="font-bold text-xs text-base-content">
+                              {userDetails?.first_name ? `${userDetails.first_name} ${userDetails.last_name || ''}` : userDetails?.username}
+                            </h4>
+                            <span className="block text-[9px] text-base-content/40 font-bold uppercase mt-0.5">
+                              {deptName} · {abs.leave_type_name}
+                            </span>
+                          </div>
+                          <span className="text-[9px] font-bold bg-secondary/15 text-secondary px-2 py-0.5 rounded">
+                            {abs.working_days_requested} Days
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1 text-[9px] text-base-content/50 font-medium">
+                          <span className="font-semibold text-base-content/70">
+                            {new Date(abs.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                          <ArrowRight className="w-3 h-3 mx-0.5 text-base-content/30" />
+                          <span className="font-semibold text-base-content/70">
+                            {new Date(abs.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-12 border border-dashed border-base-content/10 rounded-2xl text-xs text-base-content/40 font-medium flex-1 flex items-center justify-center mt-4">
+                  No approved absences in the next 30 days.
+                </div>
+              )}
+            </div>
+
+            {/* Column 3: Payment Status */}
+            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl flex flex-col h-[520px]">
+              <div className="flex items-center gap-3 border-b border-base-content/5 pb-3 shrink-0">
+                <div className="bg-primary/10 p-2.5 rounded-lg text-primary">
+                  <Wallet className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold Outfit">Payment Status</h3>
+                  <p className="text-[10px] text-base-content/40 uppercase font-black tracking-wider">Recent Requisitions</p>
+                </div>
+              </div>
+
+              {isPettyCashLoading ? (
+                <div className="space-y-3 pt-4 flex-1">
+                  <div className="h-12 bg-base-300/40 animate-pulse rounded-xl"></div>
+                  <div className="h-12 bg-base-300/40 animate-pulse rounded-xl"></div>
+                </div>
+              ) : pettyCashData?.results?.length > 0 ? (
+                <div className="pt-2 flex-1 overflow-y-auto pr-1 scrollbar-thin mt-4 space-y-3">
+                  {pettyCashData.results.slice(0, 5).map((req) => (
+                    <div key={req.id} className="p-3 bg-base-300/30 rounded-xl border border-base-content/5 space-y-2">
+                      <div className="flex justify-between items-start">
+                        <div className="min-w-0 flex-1 pr-2">
+                          <Link to={`/petty-cash/${req.uuid}`} className="font-bold text-xs text-base-content hover:text-primary transition-colors block truncate">
+                            {req.title}
+                          </Link>
+                          <span className="block text-[9px] text-base-content/40 font-bold uppercase mt-0.5">
+                            By {req.requester_name || req.requester_username} · Dept: {req.department_name}
+                          </span>
+                        </div>
+                        <span className="text-xs font-black text-base-content shrink-0">
+                          ৳{parseFloat(req.amount_requested).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center text-[9px] text-base-content/50">
+                        <span>Needed: {new Date(req.needed_by).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
+                        <StatusBadge state={req.state} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 border border-dashed border-base-content/10 rounded-2xl text-xs text-base-content/40 font-medium flex-1 flex items-center justify-center mt-4">
+                  No requisitions found.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Department Budget summary */}
+          {user?.profile?.department && (
+            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl relative overflow-hidden border-l-4 border-success">
+              <div className="absolute top-0 right-0 w-64 h-64 bg-success/5 rounded-full blur-3xl pointer-events-none"></div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="bg-success/10 p-2.5 rounded-lg text-success">
+                    <PiggyBank className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold Outfit">Department Budget Summary</h3>
+                    <p className="text-xs text-base-content/40 font-bold uppercase tracking-wider">
+                      {user.profile.department.name} Department
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-8 flex-wrap items-center">
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-base-content/45 font-bold uppercase tracking-wider">Monthly Budget</span>
+                    <p className="text-lg font-extrabold Outfit text-base-content">৳{deptBudget.toLocaleString()}</p>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-base-content/45 font-bold uppercase tracking-wider">Spent This Month</span>
+                    <p className="text-lg font-extrabold Outfit text-base-content/90">৳{parseFloat(user.profile.department.budget_spent_this_month || 0).toLocaleString()}</p>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-[10px] text-base-content/45 font-bold uppercase tracking-wider">Remaining Budget</span>
+                    <p className="text-lg font-extrabold Outfit text-success">৳{(deptBudget - parseFloat(user.profile.department.budget_spent_this_month || 0)).toLocaleString()}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          {/* Left Column (2 cols wide): My Recent Requisitions */}
+          <div className="lg:col-span-2 space-y-8">
             <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -253,193 +394,48 @@ export function EmployeeDashboardView({
                 />
               )}
             </div>
-          )}
-        </div>
+          </div>
 
-        {/* Right Side: Quick navigation + Balances */}
-        <div className="space-y-8">
-          {/* Upcoming Leaves for Team Lead, Manager, CEO, HR */}
-          {isManagerOrExec && (
-            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4">
-              <div className="flex items-center gap-3 border-b border-base-content/5 pb-3">
-                <div className="bg-secondary/10 p-2.5 rounded-lg text-secondary">
-                  <CalendarDays className="w-5 h-5" />
+          {/* Right Column (1 col wide): Department Budget summary */}
+          <div className="space-y-8">
+            {user?.profile?.department && (
+              <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-success/5 rounded-full blur-2xl pointer-events-none"></div>
+                <div className="flex items-center gap-3">
+                  <div className="bg-success/10 p-2.5 rounded-lg text-success">
+                    <PiggyBank className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold Outfit">Department Budget</h3>
+                    <p className="text-[10px] text-base-content/40 uppercase font-bold tracking-wider">
+                      {user.profile.department.name}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-base font-bold Outfit">Upcoming Leaves</h3>
-                  <p className="text-[10px] text-base-content/40 uppercase font-black tracking-wider">Next 30 Days</p>
-                </div>
-              </div>
 
-              {isUpcomingAbsencesLoading ? (
                 <div className="space-y-3 pt-2">
-                  <div className="h-12 bg-base-300/40 animate-pulse rounded-xl"></div>
-                  <div className="h-12 bg-base-300/40 animate-pulse rounded-xl"></div>
-                </div>
-              ) : upcomingAbsences && upcomingAbsences.length > 0 ? (
-                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {upcomingAbsences.map((abs) => {
-                    const userDetails = abs.requester_details;
-                    const deptName = userDetails?.profile?.department?.name || 'Central Office';
-                    return (
-                      <div key={abs.id} className="p-3 bg-base-300/30 rounded-xl border border-base-content/5 space-y-2">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-bold text-xs text-base-content">
-                              {userDetails?.first_name ? `${userDetails.first_name} ${userDetails.last_name || ''}` : userDetails?.username}
-                            </h4>
-                            <span className="block text-[9px] text-base-content/40 font-bold uppercase mt-0.5">
-                              {deptName} · {abs.leave_type_name}
-                            </span>
-                          </div>
-                          <span className="text-[9px] font-bold bg-secondary/15 text-secondary px-2 py-0.5 rounded">
-                            {abs.working_days_requested} Days
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1 text-[9px] text-base-content/50 font-medium">
-                          <span className="font-semibold text-base-content/70">
-                            {new Date(abs.start_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          </span>
-                          <ArrowRight className="w-3 h-3 mx-0.5 text-base-content/30" />
-                          <span className="font-semibold text-base-content/70">
-                            {new Date(abs.end_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-8 border border-dashed border-base-content/10 rounded-2xl text-xs text-base-content/40 font-medium">
-                  No approved absences in the next 30 days.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Requisition Payment Status Card */}
-          {isManagerOrExec && (
-            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4">
-              <div className="flex items-center gap-3 border-b border-base-content/5 pb-3">
-                <div className="bg-primary/10 p-2.5 rounded-lg text-primary">
-                  <Wallet className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold Outfit">Payment Status</h3>
-                  <p className="text-[10px] text-base-content/40 uppercase font-black tracking-wider">Recent Requisitions</p>
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-base-content/60">Monthly Budget</span>
+                    <span className="text-base-content">৳{deptBudget.toLocaleString()}</span>
+                  </div>
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-base-content/60">Spent This Month</span>
+                    <span className="text-base-content/95 font-bold">
+                      ৳{parseFloat(user.profile.department.budget_spent_this_month || 0).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs font-semibold">
+                    <span className="text-base-content/60">Remaining Budget</span>
+                    <span className="text-success font-bold">
+                      ৳{(deptBudget - parseFloat(user.profile.department.budget_spent_this_month || 0)).toLocaleString()}
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              {isPettyCashLoading ? (
-                <div className="space-y-3 pt-2">
-                  <div className="h-12 bg-base-300/40 animate-pulse rounded-xl"></div>
-                  <div className="h-12 bg-base-300/40 animate-pulse rounded-xl"></div>
-                </div>
-              ) : pettyCashData?.results?.length > 0 ? (
-                <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
-                  {pettyCashData.results.slice(0, 5).map((req) => (
-                    <div key={req.id} className="p-3 bg-base-300/30 rounded-xl border border-base-content/5 space-y-2">
-                      <div className="flex justify-between items-start">
-                        <div className="min-w-0 flex-1 pr-2">
-                          <Link to={`/petty-cash/${req.uuid}`} className="font-bold text-xs text-base-content hover:text-primary transition-colors block truncate">
-                            {req.title}
-                          </Link>
-                          <span className="block text-[9px] text-base-content/40 font-bold uppercase mt-0.5">
-                            By {req.requester_name || req.requester_username} · Dept: {req.department_name}
-                          </span>
-                        </div>
-                        <span className="text-xs font-black text-base-content shrink-0">
-                          ৳{parseFloat(req.amount_requested).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center text-[9px] text-base-content/50">
-                        <span>Needed: {new Date(req.needed_by).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</span>
-                        <StatusBadge state={req.state} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 border border-dashed border-base-content/10 rounded-2xl text-xs text-base-content/40 font-medium">
-                  No requisitions found.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Leave Balances Panel (for employee view) */}
-          {!isExecutive && (
-            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4">
-              <div>
-                <h3 className="text-lg font-bold Outfit">My Leave Balances</h3>
-                <p className="text-xs text-base-content/50">Available balances for {new Date().getFullYear()}</p>
-              </div>
-
-              {isLeaveBalancesLoading ? (
-                <LoadingSkeleton variant="table" count={3} />
-              ) : leaveBalances && leaveBalances.length > 0 ? (
-                <div className="space-y-4">
-                  {leaveBalances.map((bal) => (
-                    <div key={bal.id} className="space-y-1">
-                      <div className="flex justify-between items-center text-xs font-semibold">
-                        <span className="text-base-content/85">{bal.leave_type_details.name}</span>
-                        <span className="text-primary font-bold">{bal.available} / {bal.total_allocated} Days</span>
-                      </div>
-                      <progress
-                        className="progress progress-primary w-full h-2 rounded-full"
-                        value={parseFloat(bal.total_allocated) - parseFloat(bal.available)}
-                        max={parseFloat(bal.total_allocated)}
-                      ></progress>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center p-6 text-center text-xs text-base-content/35 font-medium border border-dashed border-base-content/10 rounded-xl">
-                  <AlertCircle className="w-5 h-5 mb-2 text-base-content/25" />
-                  No leave balances allocated for this year.
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Department Budget summary (for employees and TLs) */}
-          {!isExecutive && user?.profile?.department && (
-            <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-success/5 rounded-full blur-2xl pointer-events-none"></div>
-              <div className="flex items-center gap-3">
-                <div className="bg-success/10 p-2.5 rounded-lg text-success">
-                  <PiggyBank className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold Outfit">Department Budget</h3>
-                  <p className="text-[10px] text-base-content/40 uppercase font-bold tracking-wider">
-                    {user.profile.department.name}
-                  </p>
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-2">
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-base-content/60">Monthly Budget</span>
-                  <span className="text-base-content">৳{deptBudget.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-base-content/60">Spent This Month</span>
-                  <span className="text-base-content/95 font-bold">
-                    ৳{parseFloat(user.profile.department.budget_spent_this_month || 0).toLocaleString()}
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-base-content/60">Remaining Budget</span>
-                  <span className="text-success font-bold">
-                    ৳{(deptBudget - parseFloat(user.profile.department.budget_spent_this_month || 0)).toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </>
   );
 }

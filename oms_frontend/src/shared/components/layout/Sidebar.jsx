@@ -40,56 +40,51 @@ export function Sidebar({ isCollapsed, onToggle }) {
   const queryClient = useQueryClient();
 
   // Query: Get pending approvals count for TL/CEO/Admin/GM/HR (refetchInterval removed)
-  const { data: pettyCashPending } = useQuery({
-    queryKey: ['pending-petty-cash'],
+  const { data: pettyCashPendingCount } = useQuery({
+    queryKey: ['pending-petty-cash-count'],
     queryFn: async () => {
-      const res = await pettyCashApi.list({ page_size: 100 });
-      return res.results?.filter(r => {
-        const isOwner = r.requester_email === user?.email;
-        if (isOwner) return false;
-
-        if (role === ROLES.TEAM_LEAD) {
-          return r.state === 'pending_tl_approval';
-        }
-        if (role === ROLES.CEO || role === ROLES.ADMIN) {
-          return r.state === 'pending_ceo_approval';
-        }
-        if (role === ROLES.HR) {
-          return r.state === 'pending_hr_disbursement' || r.state === 'partially_disbursed';
-        }
-        return false;
-      }) || [];
+      let count = 0;
+      if (role === ROLES.TEAM_LEAD) {
+        const res = await pettyCashApi.list({ state: 'pending_tl_approval', page_size: 1, exclude_self: 'true' });
+        count = res.count || 0;
+      } else if (role === ROLES.CEO || role === ROLES.ADMIN) {
+        const res = await pettyCashApi.list({ state: 'pending_ceo_approval', page_size: 1, exclude_self: 'true' });
+        count = res.count || 0;
+      } else if (role === ROLES.HR) {
+        const [res1, res2] = await Promise.all([
+          pettyCashApi.list({ state: 'pending_hr_disbursement', page_size: 1, exclude_self: 'true' }),
+          pettyCashApi.list({ state: 'partially_disbursed', page_size: 1, exclude_self: 'true' })
+        ]);
+        count = (res1.count || 0) + (res2.count || 0);
+      }
+      return count;
     },
-    enabled: !!user && [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR].includes(role),
+    enabled: !!user && [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.HR].includes(role),
   });
 
-  const { data: leavePending } = useQuery({
-    queryKey: ['pending-leaves'],
+  const { data: leavePendingCount } = useQuery({
+    queryKey: ['pending-leaves-count'],
     queryFn: async () => {
-      const res = await leaveApi.listRequests({ page_size: 100 });
-      return res.results?.filter(r => {
-        const isOwner = r.requester_name === user?.first_name + ' ' + (user?.last_name || '') || r.requester_name === user?.username;
-        if (isOwner) return false;
-
-        if (role === ROLES.TEAM_LEAD) {
-          return r.state === 'pending_tl_approval';
-        }
-        if (role === ROLES.GENERAL_MANAGER) {
-          return r.state === 'pending_gm_approval';
-        }
-        return false;
-      }) || [];
+      let count = 0;
+      if (role === ROLES.TEAM_LEAD) {
+        const res = await leaveApi.listRequests({ state: 'pending_tl_approval', page_size: 1, exclude_self: 'true' });
+        count = res.count || 0;
+      } else if (role === ROLES.GENERAL_MANAGER) {
+        const res = await leaveApi.listRequests({ state: 'pending_gm_approval', page_size: 1, exclude_self: 'true' });
+        count = res.count || 0;
+      }
+      return count;
     },
-    enabled: !!user && [ROLES.TEAM_LEAD, ROLES.CEO, ROLES.ADMIN, ROLES.GENERAL_MANAGER, ROLES.HR].includes(role),
+    enabled: !!user && [ROLES.TEAM_LEAD, ROLES.GENERAL_MANAGER].includes(role),
   });
 
-  const pendingApprovalsCount = (pettyCashPending?.length || 0) + (leavePending?.length || 0);
+  const pendingApprovalsCount = (pettyCashPendingCount || 0) + (leavePendingCount || 0);
 
   const handleToggle = () => {
     onToggle();
     // Manual query refresh trigger: user opens/collapses sidebar
-    queryClient.invalidateQueries({ queryKey: ['pending-petty-cash'] });
-    queryClient.invalidateQueries({ queryKey: ['pending-leaves'] });
+    queryClient.invalidateQueries({ queryKey: ['pending-petty-cash-count'] });
+    queryClient.invalidateQueries({ queryKey: ['pending-leaves-count'] });
   };
 
   // Check if the current user can see analytics
