@@ -144,25 +144,32 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ## 👥 Seed User Credentials
 
-All seeded users have the password set to `password123`.
+All seeded users have the password set to `password123`. For a full breakdown of departments, emails, and budget limits, see [credentials](file:///media/ridwanul/D/WorkStuff/A%20Maze%20/Petty%20Cash%20V2/PettyCash/credentials).
 
-### 1. A Maze Venture (`amaze` tenant)
-*   **CEO**: `amaze_ceo` (Approves Petty Cash above TL limit, Leave requests)
-*   **Admin**: `amaze_admin` (Full tenant control, disbursement capabilities)
-*   **Engineering Lead**: `amaze_eng_lead` (Approves requests within Engineering)
-*   **Engineering Staff**: `amaze_eng_emp1`, `amaze_eng_emp2` (Requesters)
+### 1. Global Roles (CEO, GM, HR, Admin)
+*   **CEO**: `{org}_ceo` (Approves Petty Cash above TL limit, Leave requests)
+*   **General Manager (GM)**: `{org}_gm` (Approves Leaves, manages delegations)
+*   **HR**: `{org}_hr` (Executes payment disbursements)
+*   **Admin**: `{org}_admin` (Full tenant control and configuration)
+*   **Team Lead**: `{org}_lead` (Initial departmental approvals)
+*(Replace `{org}` with `amaze`, `mynt`, or `braincount`)*
 
-### 2. mYnt Connect (`mynt` tenant)
-*   **CEO**: `mynt_ceo`
-*   **Admin**: `mynt_admin`
-*   **Marketing Lead**: `mynt_mkt_lead`
-*   **Marketing Staff**: `mynt_mkt_emp1`, `mynt_mkt_emp2`
-
-### 3. Braincount (`braincount` tenant)
-*   **CEO**: `braincount_ceo`
-*   **Admin**: `braincount_admin`
-*   **Finance Lead**: `braincount_fin_lead`
-*   **Finance Staff**: `braincount_fin_emp1`, `braincount_fin_emp2`
+### 2. Departmental Staff (Employees)
+*   **A Maze Venture (`amaze`)**:
+    *   Venture Development (`vent`): `amaze_vent_emp1`, `amaze_vent_emp2`
+    *   Creative Studio (`creative`): `amaze_creative_emp1`, `amaze_creative_emp2`
+    *   People & Culture (`hr`): `amaze_hr_emp1`, `amaze_hr_emp2`
+    *   Strategy & Growth (`growth`): `amaze_growth_emp1`, `amaze_growth_emp2`
+*   **mYnt Connect (`mynt`)**:
+    *   Network Engineering (`net`): `mynt_net_emp1`, `mynt_net_emp2`
+    *   Customer Relations (`support`): `mynt_support_emp1`, `mynt_support_emp2`
+    *   Finance & Admin (`fin`): `mynt_fin_emp1`, `mynt_fin_emp2`
+    *   Hardware Logistics (`logistics`): `mynt_logistics_emp1`, `mynt_logistics_emp2`
+*   **Braincount (`braincount`)**:
+    *   AI Research (`ai`): `braincount_ai_emp1`, `braincount_ai_emp2`
+    *   Infrastructure & Ops (`ops`): `braincount_ops_emp1`, `braincount_ops_emp2`
+    *   Product Management (`prod`): `braincount_prod_emp1`, `braincount_prod_emp2`
+    *   Sales & Partnerships (`sales`): `braincount_sales_emp1`, `braincount_sales_emp2`
 
 ---
 
