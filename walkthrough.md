@@ -76,17 +76,38 @@ This walkthrough summarizes the refinements, validation, and data migrations com
     - **Detail Pages back navigation**: Retrieved the state parameter via `useLocation` hook in [LeaveDetailPage.jsx](file:///f:/Work%20Stuff/A%20Maze/PettyCash/PettyCash/oms_frontend/src/features/leave/pages/LeaveDetailPage.jsx) and [PettyCashDetailPage.jsx](file:///f:/Work%20Stuff/A%20Maze/PettyCash/PettyCash/oms_frontend/src/features/petty-cash/pages/PettyCashDetailPage.jsx).
     - **Dynamic Redirection**: Configured the back buttons to dynamically route to `/approvals` (with the label `Back to Approvals`) if coming from approvals, falling back to default list paths/labels if accessed directly.
 
+14. **Smart Requisition Quick-Find (ID Search Override)**
+    - **Global Requisition Search**: Updated [pettycash/views.py](file:///f:/Work%20Stuff/A%20Maze/PettyCash/PettyCash/oms_backend/pettycash/views.py) filter queryset to check if the search string is a Requisition reference or ID.
+    - If a match is found (e.g. `REQ-1851` or `1851`), it skips state and tab filters, querying the database globally by ID to return the result immediately.
+
+15. **Zero-Trust Budget Guard**
+    - **Hide stats from regular employees**: Conditionally hid the department budget summary card on [EmployeeDashboardView.jsx](file:///f:/Work%20Stuff/A%20Maze/PettyCash/PettyCash/oms_frontend/src/features/dashboard/components/EmployeeDashboardView.jsx) and the Budget Monitor widget on [PettyCashCreateModal.jsx](file:///f:/Work%20Stuff/A%20Maze/PettyCash/PettyCash/oms_frontend/src/features/petty-cash/components/PettyCashCreateModal.jsx) if `user?.profile?.role === 'EMPLOYEE'`.
+    - This limits budget visibility to Team Leads and Managers, avoiding excessive spending rushes while maintaining backend budget limit checks.
+
+16. **My Leave Balances Widget**
+    - **Dashboard Integration**: Added a personal leave balances tracking card for regular employees on the right sidebar of the dashboard, filling the empty space cleanly with a visualization of remaining/allocated days.
+
+17. **Leave Type Scoping (Maternity & Paternity Leave Hide)**
+    - **Hide by default**: Excluded Maternity and Paternity leave types from the employee's visible balances and the application category select dropdown on [LeaveListPage.jsx](file:///f:/Work%20Stuff/A%20Maze/PettyCash/PettyCash/oms_frontend/src/features/leave/pages/LeaveListPage.jsx).
+
+18. **Multi-Tenant Custom Branding**
+    - **Mynt Connect Customization**: Enabled dynamic branding for the Mynt Connect portal (displays correct organization names, correct emails, and hides unrelated brand info tables on the disbursement details).
+
+19. **Log Cash Disbursement Reference Hardcoding**
+    - **Single Reference System**: Bound the cash disbursement reference number directly to the requisition reference number to prevent dual-numbering confusion for HR and allow simple cross-referencing.
+
+20. **Disbursement Details Grid Realignment**
+    - **Horizontal Layout**: Repositioned the process pipeline, activity history, and disbursement journal to sit side-by-side in a responsive row layout, replacing the tall single vertical column.
+
 ---
 
 ## 🧪 Verification & Validation
 
-- **Backend Test Suite**: Verified that all 17 integration tests pass successfully:
+- **Backend Test Suite**: Verified that all integration tests pass successfully:
   ```bash
   python manage.py test
-  # Ran 17 tests in 24.666s. OK.
   ```
 - **Frontend Build**: Verified that Vite compiling environment builds client code without error:
   ```bash
   npm run build
-  # Built client environment for production successfully.
   ```
