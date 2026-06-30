@@ -396,9 +396,9 @@ export function EmployeeDashboardView({
             </div>
           </div>
 
-          {/* Right Column (1 col wide): Department Budget summary */}
+          {/* Right Column (1 col wide): Department Budget or Leave Balances */}
           <div className="space-y-8">
-            {user?.profile?.department && (
+            {user?.profile?.department && user?.profile?.role !== 'EMPLOYEE' && (
               <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4 relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-24 h-24 bg-success/5 rounded-full blur-2xl pointer-events-none"></div>
                 <div className="flex items-center gap-3">
@@ -430,6 +430,69 @@ export function EmployeeDashboardView({
                       ৳{(deptBudget - parseFloat(user.profile.department.budget_spent_this_month || 0)).toLocaleString()}
                     </span>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {user?.profile?.role === 'EMPLOYEE' && leaveBalances && leaveBalances.length > 0 && (
+              <div className="stagger-card glass-panel p-6 rounded-2xl shadow-xl space-y-4 relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-24 h-24 bg-primary/5 rounded-full blur-2xl pointer-events-none"></div>
+                <div className="flex items-center gap-3">
+                  <div className="bg-primary/10 p-2.5 rounded-lg text-primary">
+                    <CalendarDays className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold Outfit">My Leave Balances</h3>
+                    <p className="text-[10px] text-base-content/40 uppercase font-bold tracking-wider">
+                      Year {new Date().getFullYear()}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-2">
+                  {leaveBalances
+                    .filter(b => {
+                      const allocated = parseFloat(b.total_allocated);
+                      if (allocated <= 0) return false;
+                      if (user?.profile?.role === 'EMPLOYEE') {
+                        const code = b.leave_type_details?.code ? b.leave_type_details.code.toUpperCase() : '';
+                        return code !== 'MATERNITY' && code !== 'PATERNITY';
+                      }
+                      return true;
+                    })
+                    .map((bal) => {
+                      const allocated = parseFloat(bal.total_allocated);
+                      const available = parseFloat(bal.available);
+                      const used = parseFloat(bal.used);
+                      const percentage = allocated > 0 ? (available / allocated) * 100 : 0;
+                      return (
+                        <div key={bal.id} className="space-y-1.5">
+                          <div className="flex justify-between text-xs font-semibold">
+                            <span className="text-base-content/70">{bal.leave_type_details.name}</span>
+                            <span className="text-base-content font-bold">
+                              {available} / {allocated} Days Left
+                            </span>
+                          </div>
+                          <div className="w-full bg-base-content/5 h-2 rounded-full overflow-hidden">
+                            <div 
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                bal.leave_type_details.code === 'ANNUAL' 
+                                  ? 'bg-primary' 
+                                  : bal.leave_type_details.code === 'SICK'
+                                  ? 'bg-secondary'
+                                  : 'bg-accent'
+                              }`}
+                              style={{ width: `${Math.min(100, Math.max(0, percentage))}%` }}
+                            ></div>
+                          </div>
+                          {used > 0 && (
+                            <span className="text-[9px] text-base-content/40 block text-right font-medium">
+                              {used} days taken
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
             )}

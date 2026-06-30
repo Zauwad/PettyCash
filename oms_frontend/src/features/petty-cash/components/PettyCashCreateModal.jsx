@@ -362,53 +362,55 @@ export function PettyCashCreateModal({ user, onClose }) {
       {/* Right Side Column: Budget Monitor & Receipts */}
       <div className="space-y-6">
         {/* Budget Monitor Widget */}
-        <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
-          <h3 className="text-base font-bold Outfit flex items-center gap-2">
-            <TrendingDown className="w-5 h-5 text-primary" />
-            Budget Monitor
-          </h3>
+        {user?.profile?.role !== 'EMPLOYEE' && (
+          <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
+            <h3 className="text-base font-bold Outfit flex items-center gap-2">
+              <TrendingDown className="w-5 h-5 text-primary" />
+              Budget Monitor
+            </h3>
 
-          <div className="space-y-4 pt-2">
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-base-content/60">{budgetFrequency === 'MONTHLY' ? 'Monthly' : budgetFrequency === 'QUARTERLY' ? 'Quarterly' : 'Yearly'} Budget</span>
-                <span>৳{deptBudget.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-base-content/60">Remaining Budget</span>
-                <span className="text-success font-bold">৳{remainingBudget.toLocaleString()}</span>
-              </div>
-            </div>
-
-            <div className="border-t border-base-content/5 pt-3 space-y-2">
-              <div className="flex justify-between text-xs font-semibold">
-                <span className="text-base-content/70">Voucher Total</span>
-                <span className={`text-base font-extrabold ${isOverBudget ? 'text-error' : 'text-primary'}`}>
-                  ৳{totalAmountRequested.toLocaleString()}
-                </span>
-              </div>
-
-              <progress
-                className={`progress w-full h-2 rounded-full ${
-                  isOverBudget 
-                    ? 'progress-error' 
-                    : totalAmountRequested / remainingBudget > 0.8
-                    ? 'progress-warning'
-                    : 'progress-primary'
-                }`}
-                value={totalAmountRequested}
-                max={remainingBudget > 0 ? remainingBudget : 1}
-              ></progress>
-
-              {isOverBudget && (
-                <div className="alert alert-error rounded-xl p-3 flex items-start gap-2 text-xs">
-                  <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
-                  <span>Requisition exceeds the remaining department budget. Contact your lead.</span>
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-base-content/60">{budgetFrequency === 'MONTHLY' ? 'Monthly' : budgetFrequency === 'QUARTERLY' ? 'Quarterly' : 'Yearly'} Budget</span>
+                  <span>৳{deptBudget.toLocaleString()}</span>
                 </div>
-              )}
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-base-content/60">Remaining Budget</span>
+                  <span className="text-success font-bold">৳{remainingBudget.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="border-t border-base-content/5 pt-3 space-y-2">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-base-content/70">Voucher Total</span>
+                  <span className={`text-base font-extrabold ${isOverBudget ? 'text-error' : 'text-primary'}`}>
+                    ৳{totalAmountRequested.toLocaleString()}
+                  </span>
+                </div>
+
+                <progress
+                  className={`progress w-full h-2 rounded-full ${
+                    isOverBudget 
+                      ? 'progress-error' 
+                      : totalAmountRequested / remainingBudget > 0.8
+                      ? 'progress-warning'
+                      : 'progress-primary'
+                  }`}
+                  value={totalAmountRequested}
+                  max={remainingBudget > 0 ? remainingBudget : 1}
+                ></progress>
+
+                {isOverBudget && (
+                  <div className="alert alert-error rounded-xl p-3 flex items-start gap-2 text-xs">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                    <span>Requisition exceeds the remaining department budget. Contact your lead.</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Market Price Intel Panel */}
         <PriceLookupPanel />

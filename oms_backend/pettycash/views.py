@@ -22,6 +22,9 @@ from pettycash.serializers import (
     DisbursementSerializer
 )
 
+import re
+from rest_framework import filters
+from django_filters.rest_framework import DjangoFilterBackend
 from django.db.models import Q, Prefetch
 from accounts.models import UserProfile
 
@@ -46,7 +49,8 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
         if self.action == 'list':
             return PettyCashListSerializer
         return PettyCashRequestSerializer
-    
+
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     filterset_fields = ['state', 'priority', 'department']
     search_fields = ['title', 'description', 'requester__username', 'requester__email']
 
@@ -83,6 +87,20 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
             queryset = queryset.exclude(requester=user)
 
         return queryset
+
+    def filter_queryset(self, queryset):
+        search_query = self.request.query_params.get('search', '')
+        if search_query:
+            id_match = re.match(r'^(?:req|voucher)[-_]?(\d+)$', search_query.strip(), re.IGNORECASE)
+            if id_match:
+                req_id = id_match.group(1)
+                # Ignore active state tabs and search globally by requisition ID
+                return queryset.filter(id=req_id)
+            if search_query.strip().isdigit():
+                req_id = int(search_query.strip())
+                # Ignore active state tabs and search globally by requisition ID
+                return queryset.filter(id=req_id)
+        return super().filter_queryset(queryset)
 
     def create(self, request, *args, **kwargs):
         if request.user.profile.role == UserRole.CEO:
@@ -345,7 +363,9 @@ class PettyCashViewSet(OrganizationViewSetMixin, viewsets.ModelViewSet):
                 
                 obj.save()
                 
-            return Response(self.get_serializer(obj).data)
+            # Re-fetch object to get updated prefetch cache including the new disbursement
+            refreshed_obj = PettyCashRequest.objects.prefetch_related('disbursements', 'line_items', 'attachments').get(uuid=uuid)
+            return Response(self.get_serializer(refreshed_obj).data)
         except Exception as e:
             return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 

@@ -108,6 +108,9 @@ class PettyCashRequestSerializer(serializers.ModelSerializer):
         write_only=True
     )
 
+    organization_name = serializers.CharField(source='organization.name', read_only=True)
+    organization_slug = serializers.CharField(source='organization.slug', read_only=True)
+
     activity_log = serializers.SerializerMethodField()
 
     class Meta:
@@ -120,7 +123,7 @@ class PettyCashRequestSerializer(serializers.ModelSerializer):
             'ceo_approved_amount', 'ceo_approved_needed_by',
             'created_at', 'updated_at', 'requester_name', 'requester_email', 
             'department_details', 'department_id', 'line_items', 'attachments', 'disbursements',
-            'activity_log'
+            'activity_log', 'organization_name', 'organization_slug'
         ]
         read_only_fields = [
             'uuid', 'amount_approved', 'amount_disbursed', 'state', 'rejection_reason', 

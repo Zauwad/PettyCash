@@ -638,7 +638,15 @@ export function LeaveListPage() {
                     <LoadingSkeleton variant="table" count={3} />
                   ) : balances && balances.length > 0 ? (
                     <div className="space-y-5">
-                      {balances.map((bal) => {
+                      {balances
+                        .filter(b => {
+                          if (user?.profile?.role === 'EMPLOYEE') {
+                            const code = b.leave_type_details?.code ? b.leave_type_details.code.toUpperCase() : '';
+                            return code !== 'MATERNITY' && code !== 'PATERNITY';
+                          }
+                          return true;
+                        })
+                        .map((bal) => {
                         const avail = parseFloat(bal.available);
                         const alloc = parseFloat(bal.total_allocated);
                         
@@ -686,10 +694,18 @@ export function LeaveListPage() {
                     <Select
                       value={watchedLeaveTypeId}
                       onChange={(val) => setValue('leave_type_id', val, { shouldValidate: true })}
-                      options={leaveTypes?.results?.map(type => ({
-                        value: String(type.id),
-                        label: `${type.name}${type.requires_attachment ? ' (Requires Attachment)' : ''}`
-                      })) || []}
+                      options={leaveTypes?.results
+                        ?.filter(type => {
+                          if (user?.profile?.role === 'EMPLOYEE') {
+                            const code = type.code ? type.code.toUpperCase() : '';
+                            return code !== 'MATERNITY' && code !== 'PATERNITY';
+                          }
+                          return true;
+                        })
+                        ?.map(type => ({
+                          value: String(type.id),
+                          label: `${type.name}${type.requires_attachment ? ' (Requires Attachment)' : ''}`
+                        })) || []}
                       placeholder="Select a category..."
                       className={errors.leave_type_id ? 'border-error rounded-xl [&>button]:border-error' : ''}
                     />

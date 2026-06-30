@@ -27,7 +27,8 @@ import {
   Send,
   Eye,
   X,
-  History
+  History,
+  Printer
 } from 'lucide-react';
 
 export function PettyCashDetailPage() {
@@ -61,11 +62,64 @@ export function PettyCashDetailPage() {
   const [refNumber, setRefNumber] = useState('');
   const [disburseNotes, setDisburseNotes] = useState('');
 
+  // Voucher print state
+  const [activePrintDisbursement, setActivePrintDisbursement] = useState(null);
+  const [lastDisbursedTransaction, setLastDisbursedTransaction] = useState(null);
+
+  const handlePrint = (disbursement) => {
+    setActivePrintDisbursement(disbursement);
+    setTimeout(() => {
+      window.print();
+      setActivePrintDisbursement(null);
+    }, 150);
+  };
+
+  const getCompanyHeaderName = (orgNameOrSlug) => {
+    const name = String(orgNameOrSlug).toLowerCase();
+    if (name.includes('mynt')) {
+      return (
+        <div className="flex flex-col font-bold">
+          <span className="text-lg tracking-wide leading-none">mYnt</span>
+          <span className="text-[9px] tracking-[0.4em] mt-1 font-semibold leading-none">CONNECT</span>
+        </div>
+      );
+    } else if (name.includes('braincount')) {
+      return (
+        <div className="flex flex-col font-bold">
+          <span className="text-lg tracking-wide leading-none">Brain</span>
+          <span className="text-[9px] tracking-[0.4em] mt-1 font-semibold leading-none">COUNT</span>
+        </div>
+      );
+    }
+    // Default A Maze Venture
+    return (
+      <div className="flex flex-col font-bold">
+        <span className="text-lg tracking-wide leading-none">A MAZE</span>
+        <span className="text-[9px] tracking-[0.3em] mt-1 font-semibold leading-none">V E N T U R E</span>
+      </div>
+    );
+  };
+
+  const getCompanyWebsite = (orgSlug) => {
+    const slug = String(orgSlug).toLowerCase();
+    if (slug.includes('mynt')) return 'myntconnect.com';
+    if (slug.includes('braincount')) return 'braincount.co';
+    return 'amazeventure.net';
+  };
+
+  const isPartialPayout = (disbursement) => {
+    return parseFloat(disbursement.amount) < parseFloat(request?.amount_approved);
+  };
+
   // Query: Requisition details
   const { data: request, isLoading, isError } = useQuery({
     queryKey: ['petty-cash-detail', uuid],
     queryFn: () => pettyCashApi.get(uuid),
   });
+
+  const orgSlug = request?.organization_slug || user?.organization?.slug || user?.profile?.organization?.slug || 'amaze';
+  const orgName = request?.organization_name || user?.organization?.name || user?.profile?.organization?.name || 'A Maze Venture';
+  const isAmaze = String(orgSlug).toLowerCase().includes('amaze');
 
   const queryParams = {
     queryKey: ['petty-cash-detail', uuid],
@@ -168,8 +222,27 @@ export function PettyCashDetailPage() {
   // Mutation: Payout Disbursement
   const disburseMutation = useMutation({
     mutationFn: (data) => pettyCashApi.disburse(uuid, data),
-    onSuccess: () => {
+    onSuccess: (res) => {
       toast.success('Payout disbursed successfully!');
+      
+      const disbursements = res?.disbursements;
+      let lastD = null;
+      if (disbursements && disbursements.length > 0) {
+        lastD = disbursements[disbursements.length - 1];
+      } else {
+        // Fail-safe client-side fallback to guarantee modal renders
+        lastD = {
+          id: 'NEW',
+          amount: parseFloat(disburseAmount) || 0,
+          payment_method: paymentMethod,
+          reference_number: refNumber,
+          notes: disburseNotes,
+          disbursed_at: new Date().toISOString(),
+          disbursed_by_name: 'Accounts'
+        };
+      }
+
+      setLastDisbursedTransaction(lastD);
       setShowDisburseModal(false);
       setDisburseAmount('');
       setRefNumber('');
@@ -378,12 +451,27 @@ export function PettyCashDetailPage() {
                 onClick={() => {
                   const remaining = parseFloat(request.amount_approved) - parseFloat(request.amount_disbursed);
                   setDisburseAmount(remaining.toString());
+                  setRefNumber(`REQ-${request.id}`);
                   setShowDisburseModal(true);
                 }}
                 className="btn btn-primary btn-sm rounded-xl font-bold gap-1.5 text-xs shadow-lg shadow-primary/20 animate-pulse"
               >
                 <Coins className="w-4 h-4" />
                 Disburse Payout
+              </button>
+            )}
+
+            {/* Print Voucher Action for Disbursed Requests */}
+            {request.disbursements?.length > 0 && (
+              <button
+                onClick={() => {
+                  const latest = request.disbursements[request.disbursements.length - 1];
+                  handlePrint(latest);
+                }}
+                className="btn btn-outline border-base-content/15 hover:bg-base-content/5 btn-sm rounded-xl font-bold gap-1.5 text-xs text-base-content"
+              >
+                <Printer className="w-4 h-4" />
+                Print Voucher
               </button>
             )}
           </div>
@@ -699,12 +787,16 @@ export function PettyCashDetailPage() {
                 request.title?.replace(/^(pending\s+(?:ceo|tl|payout|hr|disbursement|approval)|approved|rejected|draft|cancelled|processed)\s*[-:\s]\s*/i, '').trim()
               } 
             />
+          </div>
+        </div>
 
-            {/* Stepper Timeline */}
-            <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-5">
+        {/* Bottom Horizontal Pipelines & Timelines Row */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+          {/* Column 1: Stepper Timeline */}
+          <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-5 flex flex-col justify-between">
+            <div>
               <h3 className="text-base font-bold Outfit">Process Pipeline</h3>
-
-              <div className="relative border-l border-base-content/10 pl-5 ml-2.5 space-y-6 text-xs text-left">
+              <div className="relative border-l border-base-content/10 pl-5 ml-2.5 mt-5 space-y-6 text-xs text-left">
                 {/* 1. Draft */}
                 <div className="relative">
                   <div className={`absolute top-0.5 -left-[27px] w-4 h-4 rounded-full border-2 flex items-center justify-center font-bold ${
@@ -786,83 +878,103 @@ export function PettyCashDetailPage() {
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Activity History Logs */}
-            {request.activity_log && request.activity_log.length > 0 && (
-              <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
-                <h3 className="text-base font-bold Outfit flex items-center gap-2">
-                  <History className="w-5 h-5 text-secondary" />
-                  Activity History
-                </h3>
-                <div className="space-y-4 text-xs">
-                  {request.activity_log.map((log) => (
-                    <div key={log.id} className="flex gap-3 text-xs border-b border-base-content/5 pb-3 last:border-0 last:pb-0">
-                      <div className="flex-1 space-y-1 text-left">
-                        <div className="flex justify-between items-center">
-                          <span className="font-bold text-base-content">
-                            {log.action} by {log.actor_name || log.actor_username || 'System'}
-                          </span>
-                          <span className="text-[10px] text-base-content/40">
-                            {new Date(log.created_at).toLocaleString()}
-                          </span>
-                        </div>
-                        {log.old_state && log.new_state && (
-                          <div className="text-[10px] text-base-content/60">
-                            Transition: <span className="font-semibold">{log.old_state}</span> → <span className="font-semibold text-secondary">{log.new_state}</span>
-                          </div>
-                        )}
-                        {log.reason && (
-                          <p className="text-xs italic text-base-content/70 mt-1 bg-base-300/20 p-2 rounded-lg border border-base-content/5">
-                            "{log.reason}"
-                          </p>
-                        )}
+          {/* Column 2: Activity History */}
+          <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4 max-h-[380px] overflow-y-auto">
+            <h3 className="text-base font-bold Outfit flex items-center gap-2">
+              <History className="w-5 h-5 text-secondary" />
+              Activity History
+            </h3>
+            <div className="space-y-4 text-xs">
+              {request.activity_log && request.activity_log.length > 0 ? (
+                request.activity_log.map((log) => (
+                  <div key={log.id} className="flex gap-3 text-xs border-b border-base-content/5 pb-3 last:border-0 last:pb-0">
+                    <div className="flex-1 space-y-1 text-left">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-base-content">
+                          {log.action} by {log.actor_name || log.actor_username || 'System'}
+                        </span>
+                        <span className="text-[10px] text-base-content/40">
+                          {new Date(log.created_at).toLocaleDateString()}
+                        </span>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Payout History timeline */}
-            {request.disbursements?.length > 0 && (
-              <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4">
-                <h3 className="text-base font-bold Outfit">Disbursement Journal</h3>
-
-                <div className="space-y-4 text-xs">
-                  {request.disbursements.map((d) => (
-                    <div key={d.id} className="p-3 bg-base-300/30 rounded-xl border border-base-content/5 space-y-2">
-                      <div className="flex justify-between items-start text-left">
-                        <div>
-                          <span className="font-bold text-primary text-sm">৳{parseFloat(d.amount).toLocaleString()}</span>
-                          <span className="block text-[10px] text-base-content/40 font-semibold uppercase mt-0.5">
-                            Method: {d.payment_method}
-                          </span>
+                      {log.old_state && log.new_state && (
+                        <div className="text-[10px] text-base-content/60">
+                          Transition: <span className="font-semibold">{log.old_state}</span> → <span className="font-semibold text-secondary">{log.new_state}</span>
                         </div>
+                      )}
+                      {log.reason && (
+                        <p className="text-xs italic text-base-content/70 mt-1 bg-base-300/20 p-2 rounded-lg border border-base-content/5">
+                          "{log.reason}"
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center text-xs text-base-content/30 font-medium bg-base-300/10 rounded-xl border border-dashed border-base-content/10">
+                  No activity logs recorded.
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Column 3: Disbursement Journal */}
+          <div className="glass-panel p-6 rounded-2xl shadow-xl space-y-4 max-h-[380px] overflow-y-auto">
+            <h3 className="text-base font-bold Outfit flex items-center gap-2">
+              <Coins className="w-5 h-5 text-primary" />
+              Disbursement Journal
+            </h3>
+
+            <div className="space-y-4 text-xs">
+              {request.disbursements?.length > 0 ? (
+                request.disbursements.map((d) => (
+                  <div key={d.id} className="p-3 bg-base-300/30 rounded-xl border border-base-content/5 space-y-2">
+                    <div className="flex justify-between items-start text-left">
+                      <div>
+                        <span className="font-bold text-primary text-sm">৳{parseFloat(d.amount).toLocaleString()}</span>
+                        <span className="block text-[10px] text-base-content/40 font-semibold uppercase mt-0.5">
+                          Method: {d.payment_method}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
                         <span className="text-[9px] text-base-content/50 font-bold bg-base-300 px-2 py-0.5 rounded">
                           {new Date(d.disbursed_at).toLocaleDateString()}
                         </span>
+                        <button
+                          onClick={() => handlePrint(d)}
+                          className="btn btn-ghost btn-circle btn-xs text-base-content/60 hover:text-primary hover:bg-base-content/10"
+                          title="Print Voucher"
+                        >
+                          <Printer className="w-3.5 h-3.5" />
+                        </button>
                       </div>
-                      
-                      {d.reference_number && (
-                        <p className="text-[10px] font-bold text-base-content/75 truncate text-left">
-                          Ref: {d.reference_number}
-                        </p>
-                      )}
-                      
-                      {d.notes && (
-                        <p className="text-[10px] text-base-content/60 leading-normal italic mt-1 bg-base-100 p-2 rounded text-left">
-                          "{d.notes}"
-                        </p>
-                      )}
-                      
-                      <p className="text-[9px] text-base-content/40 font-bold text-right">
-                        Issued by: {d.disbursed_by_name}
-                      </p>
                     </div>
-                  ))}
+                    
+                    {d.reference_number && (
+                      <p className="text-[10px] font-bold text-base-content/75 truncate text-left">
+                        Ref: {d.reference_number}
+                      </p>
+                    )}
+                    
+                    {d.notes && (
+                      <p className="text-[10px] text-base-content/60 leading-normal italic mt-1 bg-base-100 p-2 rounded text-left">
+                        "{d.notes}"
+                      </p>
+                    )}
+                    
+                    <p className="text-[9px] text-base-content/40 font-bold text-right">
+                      Issued by: {d.disbursed_by_name}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center text-xs text-base-content/30 font-medium bg-base-300/10 rounded-xl border border-dashed border-base-content/10">
+                  No disbursements recorded yet.
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
@@ -1100,8 +1212,222 @@ export function PettyCashDetailPage() {
           </div>,
           document.body
         )}
+
+        {/* Disbursement Success Modal */}
+        {lastDisbursedTransaction && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setLastDisbursedTransaction(null)} />
+            <div className="relative w-full max-w-md bg-base-200 border border-base-content/10 p-6 rounded-2xl shadow-2xl z-10 space-y-6 text-center animate-scale-in">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 bg-success/25 text-success rounded-full flex items-center justify-center">
+                  <CheckCircle2 className="w-6 h-6" />
+                </div>
+                <h3 className="text-xl font-bold Outfit text-base-content">Disbursement Complete!</h3>
+                <p className="text-xs text-base-content/60">
+                  The amount has been successfully recorded in the disbursement journal.
+                </p>
+              </div>
+
+              <div className="bg-base-300/40 border border-base-content/5 p-4 rounded-xl space-y-2 text-left text-xs">
+                <div className="flex justify-between">
+                  <span className="text-base-content/50">Voucher Serial No:</span>
+                  <span className="font-bold text-base-content">VOUCHER-{lastDisbursedTransaction.id}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-base-content/50">Disbursed Amount:</span>
+                  <span className="font-extrabold text-primary">৳{parseFloat(lastDisbursedTransaction.amount).toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-base-content/50">Payment Method:</span>
+                  <span className="font-bold text-base-content">{lastDisbursedTransaction.payment_method}</span>
+                </div>
+                {lastDisbursedTransaction.reference_number && (
+                  <div className="flex justify-between">
+                    <span className="text-base-content/50">Reference:</span>
+                    <span className="font-bold text-base-content">{lastDisbursedTransaction.reference_number}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => {
+                    handlePrint(lastDisbursedTransaction);
+                    setLastDisbursedTransaction(null);
+                  }}
+                  className="btn btn-primary rounded-xl font-bold flex-1 text-xs shadow-md shadow-primary/25 flex items-center justify-center gap-1.5"
+                >
+                  <Printer className="w-4 h-4" />
+                  Print Payout Voucher
+                </button>
+                <button
+                  onClick={() => setLastDisbursedTransaction(null)}
+                  className="btn btn-outline border-base-content/10 hover:bg-base-content/5 rounded-xl text-xs flex-1 text-base-content"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Printable Voucher Section */}
+        {activePrintDisbursement && createPortal(
+          <div id="print-voucher-root" className="hidden print:block bg-white text-black p-4 font-sans border-2 border-black max-w-[7.2in] mx-auto rounded-xl">
+            {/* Header Block */}
+            <div className="border border-black p-2.5 flex justify-between items-start rounded-lg gap-4">
+              {/* Top Left: Company Branding */}
+              <div className="text-left max-w-[280px]">
+                <div className="font-black text-lg tracking-wider Outfit uppercase leading-none mb-1 text-black">
+                  {getCompanyHeaderName(orgSlug)}
+                </div>
+                <p className="text-[8px] leading-tight text-black/90 mt-1 font-bold">
+                  {orgName}<br />
+                  Address: House #19, Road #13, Block #G,<br />
+                  Niketan, Gulshan-1, Dhaka-1212.<br />
+                  Cell: +880 1302961235<br />
+                  {getCompanyWebsite(orgSlug)}
+                </p>
+              </div>
+
+              {/* Top Middle: Title */}
+              <div className="self-center text-center">
+                <h2 className="text-base font-black Outfit tracking-wide text-black uppercase">Petty Cash - Voucher</h2>
+              </div>
+
+              {/* Top Right: Sister concerns logo placeholder */}
+              {/* Top Right: Sister concerns logo placeholder */}
+              {isAmaze ? (
+                <div className="flex items-center gap-2.5 self-center text-black">
+                  {/* Reachable logo */}
+                  <div className="flex items-center gap-0.5">
+                    <div className="w-4.5 h-4.5 bg-black text-white rounded flex items-center justify-center font-bold text-[10px]">r</div>
+                    <span className="font-extrabold text-[9px] tracking-tight">reachable</span>
+                  </div>
+                  {/* Papercable logo */}
+                  <div className="flex items-center gap-0.5">
+                    <div className="w-4.5 h-4.5 bg-black text-white rounded-full flex items-center justify-center font-black text-[10px]">p</div>
+                    <span className="font-extrabold text-[9px] tracking-tight">papercable</span>
+                  </div>
+                </div>
+              ) : (
+                <div className="w-[120px]" />
+              )}
+            </div>
+
+            {/* Form Fields block */}
+            <div className="grid grid-cols-3 gap-3 mt-3 text-black">
+              <div className="col-span-2 space-y-2">
+                <div className="flex items-center gap-1.5 border border-black rounded-md px-2 py-1 bg-neutral-50/50">
+                  <span className="font-bold text-[10px] shrink-0">Name:</span>
+                  <span className="text-[10px] font-semibold truncate">{request?.requester_name || request?.requester_username}</span>
+                </div>
+                <div className="flex items-center gap-1.5 border border-black rounded-md px-2 py-1 bg-neutral-50/50">
+                  <span className="font-bold text-[10px] shrink-0">Purpose:</span>
+                  <span className="text-[10px] font-semibold truncate">{request?.title}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-1.5 border border-black rounded-md px-2 py-1 bg-neutral-50/50">
+                  <span className="font-bold text-[10px] shrink-0">SL No.</span>
+                  <span className="text-[10px] font-semibold truncate">VOUCHER-{activePrintDisbursement.id}</span>
+                </div>
+                <div className="flex items-center gap-1.5 border border-black rounded-md px-2 py-1 bg-neutral-50/50">
+                  <span className="font-bold text-[10px] shrink-0">Date:</span>
+                  <span className="text-[10px] font-semibold truncate">{new Date(activePrintDisbursement.disbursed_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Table block */}
+            <div className="mt-3 border border-black rounded-md overflow-hidden text-black">
+              <table className="w-full text-[10px] text-left border-collapse">
+                <thead>
+                  <tr className="bg-neutral-100 border-b border-black font-bold">
+                    <th className="p-2 border-r border-black">Description</th>
+                    <th className="p-2 border-r border-black w-24 text-center">Quantity</th>
+                    <th className="p-2 w-28 text-right">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {request?.line_items?.slice(0, 3).map((item, idx) => (
+                    <tr key={item.id || idx} className="border-b border-black/40">
+                      <td className="p-1.5 border-r border-black/40 truncate max-w-[200px]">{item.description}</td>
+                      <td className="p-1.5 border-r border-black/40 text-center">{item.quantity}</td>
+                      <td className="p-1.5 text-right">৳{parseFloat(item.total_price || item.total || 0).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                  {/* Empty rows to match design aesthetics if list is short */}
+                  {Array.from({ length: Math.max(0, 3 - (request?.line_items?.length || 0)) }).map((_, idx) => (
+                    <tr key={`empty-${idx}`} className="border-b border-black/40 h-6">
+                      <td className="p-1.5 border-r border-black/40"></td>
+                      <td className="p-1.5 border-r border-black/40"></td>
+                      <td className="p-1.5"></td>
+                    </tr>
+                  ))}
+                  {/* Total row */}
+                  <tr className="font-bold bg-neutral-50">
+                    <td className="p-1.5 border-r border-black text-right" colSpan="2">
+                      {isPartialPayout(activePrintDisbursement) ? 'Total (Partial Payout)' : 'Total'}
+                    </td>
+                    <td className="p-1.5 text-right text-[11px] font-black">
+                      ৳{parseFloat(activePrintDisbursement.amount).toLocaleString()}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            {/* Signatures Footer block */}
+            <div className="grid grid-cols-3 gap-6 mt-6 pt-4 text-center text-[9px] text-black">
+              <div>
+                <div className="border-t border-black pt-1.5 font-bold uppercase tracking-wide">Received By</div>
+              </div>
+              <div>
+                <div className="border-t border-black pt-1.5 font-bold uppercase tracking-wide">Accounts</div>
+              </div>
+              <div>
+                <div className="border-t border-black pt-1.5 font-bold uppercase tracking-wide">Approved By</div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
+
+        {/* Localized Print CSS overrides */}
+        <style>{`
+          @media print {
+            @page {
+              size: 7.2in 4.8in;
+              margin: 0 !important;
+            }
+            #root {
+              display: none !important;
+            }
+            #print-voucher-root, #print-voucher-root * {
+              visibility: visible !important;
+            }
+            #print-voucher-root {
+              display: block !important;
+              position: absolute !important;
+              left: 0 !important;
+              top: 0 !important;
+              width: 7.2in !important;
+              height: 4.8in !important;
+              padding: 0.25in !important;
+              margin: 0 !important;
+              box-sizing: border-box !important;
+              border: 1.5px solid black !important;
+              border-radius: 8px !important;
+              background: white !important;
+              color: black !important;
+              box-shadow: none !important;
+            }
+          }
+        `}</style>
       </div>
     </PageTransition>
   );
 }
 export default PettyCashDetailPage;
+

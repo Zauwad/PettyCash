@@ -165,7 +165,7 @@ export function PettyCashListPage() {
               <SearchInput 
                 value={searchVal}
                 onSearch={handleSearch} 
-                placeholder="Search requisitions (e.g. office ink)..."
+                placeholder="Search by title, description or reference (e.g. REQ-12)..."
               />
 
               {/* Priority & Filters */}

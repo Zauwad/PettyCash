@@ -349,12 +349,12 @@ export function TeamPage() {
                                 </div>
                               )}
                               <div>
-                                <p className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
+                                <div className="font-extrabold text-sm text-base-content flex items-center gap-1.5">
                                   {empName}
                                   {isSelf && (
                                     <Badge variant="default" className="text-[10px] leading-none uppercase tracking-wider font-bold px-1.5 py-0.5 rounded">You</Badge>
                                   )}
-                                </p>
+                                </div>
                                 <p className="text-[10px] text-base-content/40 font-semibold">{emp.email}</p>
                               </div>
                             </div>
