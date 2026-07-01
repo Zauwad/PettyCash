@@ -19,7 +19,7 @@ The system leverages a premium tech stack consisting of **Django REST Framework 
     *   Calculates exact working days requested, automatically excluding Friday/Saturday weekends and Bangladesh national holidays.
     *   Negative balance policy checks, overlapping request detection, and automatic balance reservation/restoration on cancel.
 *   **OOO Approval Delegation**: Active delegation of Petty Cash and/or Leave approval authority to another user for a specific date range.
-*   **Real-time Notifications**: WebSockets via Django Channels for in-app popups and status updates.
+*   **In-App Notifications**: Seamless delivery of request status changes, comments, and delegations directly on the user's dashboard.
 *   **Analytics Dashboard**: Interactive charts (spending trends, department budget burn rates, upcoming absences) built with Recharts.
 
 ---
@@ -27,15 +27,13 @@ The system leverages a premium tech stack consisting of **Django REST Framework 
 ## Technology Stack
 
 ### Backend
-*   **Web Framework**: Django 5.x & Django REST Framework (DRF) 3.15+
-*   **Workflow / State Management**: `django-fsm-2`
-*   **ASGI Server (WebSockets)**: `daphne` + `channels` + `channels-redis`
-*   **Task Queue**: `celery` + `django-celery-beat`
-*   **Message Broker & Cache**: Redis 7.x
-*   **Database**: SQLite (Default / containerized volume) or MySQL 8.x (Row-level isolation)
+*   **Web Framework**: Django 4.2 LTS & Django REST Framework (DRF) 3.14+
+*   **Workflow / State Management**: `django-fsm`
+*   **Task/Email Queue**: Thread-based asynchronous execution model (using custom Python threading decorators)
+*   **Database**: SQLite (Default / containerized volume) or MySQL 8.x (Row-level isolation support)
 
 ### Frontend
-*   **Runtime / Build Tool**: React 19 + Vite 6
+*   **Runtime / Build Tool**: React 19 + Vite 8
 *   **Routing**: React Router v7
 *   **Styling**: Tailwind CSS v4 & DaisyUI v5 (with 3 custom organization themes)
 *   **State Management**: Zustand 5 & TanStack Query (React Query) v5
@@ -47,37 +45,29 @@ The system leverages a premium tech stack consisting of **Django REST Framework 
 ## Project Directory Structure
 
 ```text
-├── docker-compose.yml       # MySQL & Redis local development container configuration
 ├── oms_backend/             # Django backend workspace
 │   ├── manage.py            # Django CLI entrypoint
-│   ├── oms_project/         # Settings, WSGI/ASGI settings, Celery setup
+│   ├── oms_project/         # Settings, WSGI/ASGI configurations, URL routing
 │   ├── core/                # Core mixins, multitenancy middleware, tasks, tests
 │   ├── accounts/            # User profiles, departments, roles, auth
 │   ├── pettycash/           # Petty Cash models, views, serializers, FSM
 │   ├── leave/               # Leave request models, calculators, calendars
 │   ├── approvals/           # Approval delegations (OOO)
 │   ├── analytics/           # Custom endpoints for metric aggregation
-│   ├── notifications/       # Notification model, views, websockets
+│   ├── notifications/       # Notification model, views, serializers
 │   ├── requirements.txt     # Backend python dependencies
 │   └── venv/                # Local virtual environment
 └── oms_frontend/            # React + Vite frontend workspace
     ├── package.json         # Frontend Node dependencies
     ├── vite.config.js       # Vite build configurations
-    ├── src/                 # React source code (components, pages, stores)
+    └── src/                 # React source code (components, pages, stores)
 ```
 
 ---
 
 ## Backend Setup & Run
 
-### 1. Run local services (MySQL & Redis)
-Ensure Docker is installed and running, then start the containers:
-```bash
-docker compose up -d
-```
-This boots MySQL on port `3306` and Redis on port `6379`.
-
-### 2. Configure Virtual Environment & Install Dependencies
+### 1. Configure Virtual Environment & Install Dependencies
 Navigate to the backend directory, activate the virtual environment, and install dependencies:
 ```bash
 cd oms_backend
@@ -85,30 +75,21 @@ source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 3. Initialize Database
-Apply migrations to set up the schema and run the seed script to populate organizations, departments, seed users, and demo requests:
+### 2. Initialize Database
+Apply migrations to set up the SQLite schema and run the seed script to populate organizations, departments, seed users, and demo requests:
 ```bash
 python manage.py migrate
 python manage.py seed_data
 ```
 
-### 4. Running Backend Servers
-You can run the servers concurrently or in separate terminals:
+### 3. Running Backend Server
+Run the local Django development server:
+```bash
+python manage.py runserver
+```
+The backend API will run at `http://127.0.0.1:8000/`.
 
-*   **HTTP & WebSocket Server (ASGI / Daphne)**:
-    ```bash
-    daphne -b 127.0.0.1 -p 8000 oms_project.asgi:application
-    ```
-*   **Celery Async Worker**:
-    ```bash
-    celery -A oms_project worker --loglevel=info
-    ```
-*   **Celery Beat Scheduler**:
-    ```bash
-    celery -A oms_project beat --loglevel=info
-    ```
-
-### 5. Running Tests
+### 4. Running Tests
 Run the end-to-end integration and workflow verification tests:
 ```bash
 python manage.py test
