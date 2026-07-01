@@ -1,4 +1,4 @@
-# 🏗️ Operations Management System (OMS)
+# Operations Management System (OMS)
 
 A robust, multi-tenant Operations Management System (OMS) designed specifically for three sister organizations under the same umbrella: **A Maze Venture**, **mYnt Connect**, and **Braincount**. 
 
@@ -6,12 +6,12 @@ The system leverages a premium tech stack consisting of **Django REST Framework 
 
 ---
 
-## 🚀 Key Features
+## Key Features
 
 *   **Row-Level Multi-Tenancy**: Data isolation across organizations (A Maze Venture, mYnt Connect, Braincount) powered by custom Django middleware, mixins, and security layers.
 *   **Dynamic Styling & Custom Themes**: Automatically applies the branding and theme of the logged-in user's organization (e.g. Amaze Theme, mYnt Theme, Braincount Theme).
 *   **Petty Cash Requisition Module**:
-    *   State machine: `draft` ➔ `pending_tl` ➔ `pending_ceo` (for requests > TL limit) ➔ `approved` ➔ `disbursed`.
+    *   State machine: `draft` ➔ `pending_tl_approval` ➔ `pending_ceo_approval` (for requests > TL limit) ➔ `pending_hr_disbursement` ➔ `partially_disbursed` / `disbursed`.
     *   Dynamic department monthly budget verification on submission.
     *   Granular itemization and support for SQL BLOB receipt storage.
     *   Supports partial or full disbursements with real-time budget updates.
@@ -24,7 +24,7 @@ The system leverages a premium tech stack consisting of **Django REST Framework 
 
 ---
 
-## 🛠️ Technology Stack
+## Technology Stack
 
 ### Backend
 *   **Web Framework**: Django 5.x & Django REST Framework (DRF) 3.15+
@@ -32,7 +32,7 @@ The system leverages a premium tech stack consisting of **Django REST Framework 
 *   **ASGI Server (WebSockets)**: `daphne` + `channels` + `channels-redis`
 *   **Task Queue**: `celery` + `django-celery-beat`
 *   **Message Broker & Cache**: Redis 7.x
-*   **Database**: MySQL 8.x (Row-level isolation)
+*   **Database**: SQLite (Default / containerized volume) or MySQL 8.x (Row-level isolation)
 
 ### Frontend
 *   **Runtime / Build Tool**: React 19 + Vite 6
@@ -44,7 +44,7 @@ The system leverages a premium tech stack consisting of **Django REST Framework 
 
 ---
 
-## 📂 Project Directory Structure
+## Project Directory Structure
 
 ```text
 ├── docker-compose.yml       # MySQL & Redis local development container configuration
@@ -63,18 +63,17 @@ The system leverages a premium tech stack consisting of **Django REST Framework 
 └── oms_frontend/            # React + Vite frontend workspace
     ├── package.json         # Frontend Node dependencies
     ├── vite.config.js       # Vite build configurations
-    ├── tailwind.config.js   # Tailwind configurations
-    └── src/                 # React source code (components, pages, stores)
+    ├── src/                 # React source code (components, pages, stores)
 ```
 
 ---
 
-## ⚙️ Backend Setup & Run
+## Backend Setup & Run
 
 ### 1. Run local services (MySQL & Redis)
 Ensure Docker is installed and running, then start the containers:
 ```bash
-docker-compose up -d
+docker compose up -d
 ```
 This boots MySQL on port `3306` and Redis on port `6379`.
 
@@ -87,7 +86,7 @@ pip install -r requirements.txt
 ```
 
 ### 3. Initialize Database
-Apply standard migrations to set up the MySQL schema and run the seed script to populate organizations, departments, seed users, and demo requests:
+Apply migrations to set up the schema and run the seed script to populate organizations, departments, seed users, and demo requests:
 ```bash
 python manage.py migrate
 python manage.py seed_data
@@ -98,7 +97,7 @@ You can run the servers concurrently or in separate terminals:
 
 *   **HTTP & WebSocket Server (ASGI / Daphne)**:
     ```bash
-    daphne -b 0.0.0.0 -p 8000 oms_project.asgi:application
+    daphne -b 127.0.0.1 -p 8000 oms_project.asgi:application
     ```
 *   **Celery Async Worker**:
     ```bash
@@ -117,7 +116,7 @@ python manage.py test
 
 ---
 
-## 🎨 Frontend Setup & Run
+## Frontend Setup & Run
 
 ### 1. Install Dependencies
 Navigate to the frontend directory and install dependencies:
@@ -142,9 +141,9 @@ Open [http://localhost:5173](http://localhost:5173) in your browser.
 
 ---
 
-## 👥 Seed User Credentials
+## Seed User Credentials
 
-All seeded users have the password set to `password123`. For a full breakdown of departments, emails, and budget limits, see [credentials](file:///media/ridwanul/D/WorkStuff/A%20Maze%20/Petty%20Cash%20V2/PettyCash/credentials).
+All seeded users have the password set to `password123`. For a full breakdown of departments, emails, and budget limits, see [credentials](./credentials).
 
 ### 1. Global Roles (CEO, GM, HR, Admin)
 *   **CEO**: `{org}_ceo` (Approves Petty Cash above TL limit, Leave requests)
@@ -173,17 +172,17 @@ All seeded users have the password set to `password123`. For a full breakdown of
 
 ---
 
-## 🧪 Verification & Manual Testing Flow
+## Verification & Manual Testing Flow
 
 1.  **Test Tenant Isolation**:
-    *   Log in as `amaze_eng_emp1` and create a Petty Cash request.
-    *   Log in as `mynt_mkt_emp1`. Verify that you cannot view or access the Amaze request, and that the UI transitions to the **mYnt** color theme.
+    *   Log in as `amaze_vent_emp1` and create a Petty Cash request.
+    *   Log in as `mynt_net_emp1`. Verify that you cannot view or access the Amaze request, and that the UI transitions to the **mYnt** color theme.
 2.  **Test Petty Cash Approval**:
-    *   Submit a Petty Cash request of `৳15,000` (exceeds the Engineering TL limit of `৳25,000`? No, Engineering TL limit is `৳25,000`, so try `৳30,000`).
-    *   Log in as `amaze_eng_lead` and approve it. It escalates to `pending_ceo_approval`.
-    *   Log in as `amaze_ceo` and approve it. The state transitions to `approved`.
-    *   Log in as `amaze_admin` to execute the payment disbursement.
+    *   Submit a Petty Cash request of `৳30,000` (exceeds the Venture Development TL limit).
+    *   Log in as `amaze_lead` and approve it. It escalates to `pending_ceo_approval`.
+    *   Log in as `amaze_ceo` and approve it. The state transitions to `pending_hr_disbursement`.
+    *   Log in as `amaze_hr` to execute the payment disbursement.
 3.  **Test OOO Delegation**:
-    *   Log in as `amaze_ceo` and delegate authority to `amaze_eng_emp1` for `PETTY_CASH`.
-    *   Create a request by `amaze_eng_emp2` and submit it. Escalate to CEO level.
-    *   Log in as `amaze_eng_emp1`. You will see the request in your approval queue and can successfully approve it on behalf of the CEO.
+    *   Log in as `amaze_ceo` and delegate authority to `amaze_vent_emp1` for `PETTY_CASH`.
+    *   Create a request by `amaze_vent_emp2` and submit it. Escalate to CEO level.
+    *   Log in as `amaze_vent_emp1`. You will see the request in your approval queue and can successfully approve it on behalf of the CEO.
