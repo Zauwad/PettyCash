@@ -99,6 +99,10 @@ This walkthrough summarizes the refinements, validation, and data migrations com
 20. **Disbursement Details Grid Realignment**
     - **Horizontal Layout**: Repositioned the process pipeline, activity history, and disbursement journal to sit side-by-side in a responsive row layout, replacing the tall single vertical column.
 
+21. **Progressive Web App (PWA) Integration**
+    - **Asset Manifest & Cache**: Added `manifest.json` and a service worker script `sw.js` in the public directory to support standalone application installability.
+    - **Floating Install Button**: Integrated the `beforeinstallprompt` event hook in [LoginForm.jsx](file:///f:/Work%20Stuff/A%20Maze/PettyCash/PettyCash/oms_frontend/src/features/auth/components/LoginForm.jsx) to trigger a beautiful, floating "Install OMS Portal" button in the bottom-left corner of the login view.
+
 ---
 
 ## 🧪 Verification & Validation

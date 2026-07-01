@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -6,7 +6,7 @@ import { useLogin } from '../hooks/useLogin';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import gsap from 'gsap';
-import { LogIn } from 'lucide-react';
+import { LogIn, Download } from 'lucide-react';
 import { Spotlight } from '@/shared/components/ui/Spotlight';
 import { ToggleTheme } from '@/components/lightswind/toggle-theme';
 
@@ -21,6 +21,33 @@ export function LoginForm() {
   const navigate = useNavigate();
   const location = useLocation();
   const loginMutation = useLogin();
+
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [isInstallable, setIsInstallable] = useState(false);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setIsInstallable(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setIsInstallable(false);
+      setDeferredPrompt(null);
+    }
+  };
 
   const {
     register,
@@ -171,6 +198,19 @@ export function LoginForm() {
           </p>
         </div>
       </div>
+
+      {/* Floating PWA Install Button (Bottom Left Corner) */}
+      {isInstallable && (
+        <div className="absolute bottom-6 left-6 z-50">
+          <button
+            onClick={handleInstallClick}
+            className="btn btn-sm btn-outline rounded-xl flex items-center gap-1.5 bg-base-100/50 hover:bg-primary border-base-content/10 text-xs font-bold text-base-content hover:text-primary-content hover:border-primary shadow-lg backdrop-blur-md transition-all duration-200 active:scale-95"
+          >
+            <Download className="w-3.5 h-3.5 animate-bounce" />
+            Install OMS Portal
+          </button>
+        </div>
+      )}
     </div>
   );
 }
