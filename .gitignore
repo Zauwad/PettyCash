@@ -48,3 +48,18 @@ Thumbs.db
 credentials
 local_data.json
 scratch/
+
+# Internal Documentation
+DEPLOY_GUIDE.md
+OMS_SYSTEM_GUIDE.md
+OPTIMIZATIONS_SUMMARY.md
+SRS.md
+Spin Up.md
+Spin up
+VM_DEPLOYMENT_RECAP.md
+implementation_plan.md
+pitch_deck_and_demo_guide.md
+task_outline.md
+walkthrough.md
+SHOWCASE_WALKTHROUGH.md
+
