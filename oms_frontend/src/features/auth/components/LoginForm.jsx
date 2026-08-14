@@ -6,7 +6,20 @@ import { useLogin } from '../hooks/useLogin';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import gsap from 'gsap';
-import { LogIn, Download } from 'lucide-react';
+import { 
+  LogIn, 
+  Download, 
+  ShieldCheck, 
+  KeyRound, 
+  Briefcase, 
+  UserCheck, 
+  Users, 
+  User, 
+  Sparkles,
+  Building2,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 import { Spotlight } from '@/shared/components/ui/Spotlight';
 import { ToggleTheme } from '@/components/lightswind/toggle-theme';
 
@@ -16,12 +29,47 @@ const loginSchema = z.object({
   password: z.string().min(4, 'Password must be at least 4 characters long'),
 });
 
+// Seed Demo Credential Profiles
+const DEMO_TENANTS = [
+  {
+    id: 'amaze',
+    name: 'A Maze Venture',
+    shortName: 'A Maze',
+    roles: [
+      { label: 'CEO', username: 'amaze_ceo', icon: ShieldCheck, colorClass: 'border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-primary-content' },
+      { label: 'Admin', username: 'amaze_admin', icon: KeyRound, colorClass: 'border-secondary/40 bg-secondary/10 text-secondary hover:bg-secondary hover:text-secondary-content' },
+      { label: 'GM', username: 'amaze_gm', icon: Briefcase, colorClass: 'border-accent/40 bg-accent/10 text-accent hover:bg-accent hover:text-accent-content' },
+      { label: 'HR / Disburser', username: 'amaze_hr', icon: UserCheck, colorClass: 'border-info/40 bg-info/10 text-info hover:bg-info hover:text-info-content' },
+      { label: 'Team Lead', username: 'amaze_lead', icon: Users, colorClass: 'border-warning/40 bg-warning/10 text-warning hover:bg-warning hover:text-warning-content' },
+      { label: 'Staff', username: 'amaze_vent_emp1', icon: User, colorClass: 'border-base-content/20 bg-base-content/5 text-base-content/80 hover:bg-base-content hover:text-base-100' },
+    ],
+  },
+  {
+    id: 'braincount',
+    name: 'Braincount',
+    shortName: 'Braincount',
+    roles: [
+      { label: 'CEO', username: 'braincount_ceo', icon: ShieldCheck, colorClass: 'border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-primary-content' },
+    ],
+  },
+  {
+    id: 'mynt',
+    name: 'mYnt Connect',
+    shortName: 'mYnt Connect',
+    roles: [
+      { label: 'CEO', username: 'mynt_ceo', icon: ShieldCheck, colorClass: 'border-primary/40 bg-primary/10 text-primary hover:bg-primary hover:text-primary-content' },
+    ],
+  },
+];
+
 export function LoginForm() {
   const formRef = useRef(null);
   const navigate = useNavigate();
   const location = useLocation();
   const loginMutation = useLogin();
 
+  const [activeTab, setActiveTab] = useState('amaze');
+  const [showPassword, setShowPassword] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [isInstallable, setIsInstallable] = useState(false);
 
@@ -52,6 +100,7 @@ export function LoginForm() {
   const {
     register,
     handleSubmit,
+    setValue,
     formState: { errors },
   } = useForm({
     resolver: zodResolver(loginSchema),
@@ -81,6 +130,15 @@ export function LoginForm() {
     return () => ctx.revert();
   }, []);
 
+  const handleQuickFill = (role, tenantName) => {
+    setValue('username', role.username, { shouldValidate: true, shouldDirty: true });
+    setValue('password', 'password123', { shouldValidate: true, shouldDirty: true });
+    toast.info(`Filled credentials for ${tenantName} (${role.label})`, {
+      icon: <Sparkles className="w-4 h-4 text-primary animate-pulse" />,
+      duration: 2500,
+    });
+  };
+
   const onSubmit = (data) => {
     loginMutation.mutate(data, {
       onSuccess: (res) => {
@@ -98,10 +156,12 @@ export function LoginForm() {
     });
   };
 
+  const selectedTenant = DEMO_TENANTS.find((t) => t.id === activeTab) || DEMO_TENANTS[0];
+
   return (
     <div 
       ref={formRef} 
-      className="min-h-screen w-full flex items-center justify-center bg-base-100 px-4 relative overflow-hidden"
+      className="min-h-screen w-full flex items-center justify-center bg-base-100 px-4 py-8 relative overflow-hidden"
     >
       {/* Theme Toggle Button */}
       <div className="absolute top-4 right-4 z-50">
@@ -161,14 +221,28 @@ export function LoginForm() {
             <label className="label text-xs font-semibold tracking-wide text-base-content/70">
               PASSWORD
             </label>
-            <input
-              type="password"
-              className={`input input-bordered w-full rounded-xl bg-base-100/40 focus:bg-base-100 border-base-content/10 ${
-                errors.password ? 'input-error' : ''
-              }`}
-              placeholder="••••••••"
-              {...register('password')}
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                className={`input input-bordered w-full rounded-xl bg-base-100/40 focus:bg-base-100 border-base-content/10 pr-10 ${
+                  errors.password ? 'input-error' : ''
+                }`}
+                placeholder="••••••••"
+                {...register('password')}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-auto cursor-pointer z-10 text-base-content/50 hover:text-base-content transition-colors p-1 rounded-lg focus:outline-none"
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? (
+                  <EyeOff className="w-4 h-4 text-base-content/60" />
+                ) : (
+                  <Eye className="w-4 h-4 text-base-content/60" />
+                )}
+              </button>
+            </div>
             {errors.password && (
               <span className="text-xs text-error font-medium mt-1 block">
                 {errors.password.message}
@@ -191,11 +265,57 @@ export function LoginForm() {
           </div>
         </form>
 
-        {/* Footer credentials hints */}
-        <div className="anim-item mt-8 pt-6 border-t border-base-content/5 text-center">
-          <p className="text-[10px] text-base-content/30 leading-relaxed uppercase tracking-wider">
-            Demo Accounts password: <span className="font-semibold text-primary/70">password123</span>
-          </p>
+        {/* Recruiter / Quick Demo Credentials Selector */}
+        <div className="anim-item mt-8 pt-6 border-t border-base-content/10">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[11px] font-bold uppercase tracking-wider text-base-content/60 flex items-center gap-1.5">
+              <Building2 className="w-3.5 h-3.5 text-primary" />
+              Quick Demo Access
+            </span>
+            <span className="text-[10px] text-base-content/40 font-mono">
+              pwd: password123
+            </span>
+          </div>
+
+          {/* Company Tabs */}
+          <div className="flex rounded-xl bg-base-200/60 p-1 mb-3.5 gap-1 border border-base-content/5">
+            {DEMO_TENANTS.map((tenant) => {
+              const isActive = activeTab === tenant.id;
+              return (
+                <button
+                  key={tenant.id}
+                  type="button"
+                  onClick={() => setActiveTab(tenant.id)}
+                  className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold pointer-events-auto cursor-pointer transition-all duration-200 ${
+                    isActive
+                      ? 'bg-base-100 text-primary shadow-sm border border-primary/20'
+                      : 'text-base-content/60 hover:text-base-content hover:bg-base-100/40'
+                  }`}
+                >
+                  {tenant.shortName}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Role Pill Badges */}
+          <div className="flex flex-wrap gap-1.5">
+            {selectedTenant.roles.map((role) => {
+              const RoleIcon = role.icon;
+              return (
+                <button
+                  key={role.username}
+                  type="button"
+                  onClick={() => handleQuickFill(role, selectedTenant.name)}
+                  className={`group flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium pointer-events-auto cursor-pointer transition-all duration-200 active:scale-95 shadow-sm ${role.colorClass}`}
+                  title={`Click to fill credentials for ${role.username}`}
+                >
+                  <RoleIcon className="w-3.5 h-3.5 transition-transform group-hover:scale-110" />
+                  <span>{role.label}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
 
@@ -214,3 +334,4 @@ export function LoginForm() {
     </div>
   );
 }
+
