@@ -1,169 +1,184 @@
-# Operations Management System (OMS)
+# Operations Management System (OMS) — Multi-Tenant Enterprise ERP & Petty Cash Engine
 
-A robust, multi-tenant Operations Management System (OMS) designed specifically for three sister organizations under the same umbrella: **A Maze Venture**, **mYnt Connect**, and **Braincount**. 
+[![Repository](https://img.shields.io/badge/GitHub-Zauwad%2FPettyCash-181717.svg?logo=github)](https://github.com/Zauwad/PettyCash)
+[![Backend](https://img.shields.io/badge/Backend-Django%204.2%20%7C%20DRF-092e20.svg)](https://www.djangoproject.com)
+[![Frontend](https://img.shields.io/badge/Frontend-React%2019%20%7C%20Vite%20%7C%20React%20Router%20v7-61DAFB.svg)](https://react.dev)
+[![Styling](https://img.shields.io/badge/Styling-Tailwind%20CSS%20v4%20%7C%20DaisyUI%20v5-38B2AC.svg)](https://tailwindcss.com)
+[![Animation](https://img.shields.io/badge/Animation-GSAP%203.15%20%7C%20Framer%20Motion-88CE02.svg)](https://gsap.com)
+[![State Machine](https://img.shields.io/badge/Workflow-django--fsm%20FSM-blueviolet.svg)](#finite-state-machine-petty-cash-workflow)
+[![Multi-Tenancy](https://img.shields.io/badge/Tenancy-Row--Level%20Multi--Tenant-blue.svg)](#multi-tenant-architecture)
 
-The system leverages a premium tech stack consisting of **Django REST Framework (DRF)** on the backend, and **React + Vite + Tailwind CSS v4 + DaisyUI v5 + GSAP** on the frontend. It features row-level multi-tenancy, custom branding/theming per organization, advanced approval workflows (Petty Cash & Leave Requests), Out-of-Office delegation, and real-time notifications via WebSockets.
-
----
-
-## Key Features
-
-*   **Row-Level Multi-Tenancy**: Data isolation across organizations (A Maze Venture, mYnt Connect, Braincount) powered by custom Django middleware, mixins, and security layers.
-*   **Dynamic Styling & Custom Themes**: Automatically applies the branding and theme of the logged-in user's organization (e.g. Amaze Theme, mYnt Theme, Braincount Theme).
-*   **Petty Cash Requisition Module**:
-    *   State machine: `draft` ➔ `pending_tl_approval` ➔ `pending_ceo_approval` (for requests > TL limit) ➔ `pending_hr_disbursement` ➔ `partially_disbursed` / `disbursed`.
-    *   Dynamic department monthly budget verification on submission.
-    *   Granular itemization and support for SQL BLOB receipt storage.
-    *   Supports partial or full disbursements with real-time budget updates.
-*   **Leave Management Module**:
-    *   Calculates exact working days requested, automatically excluding Friday/Saturday weekends and Bangladesh national holidays.
-    *   Negative balance policy checks, overlapping request detection, and automatic balance reservation/restoration on cancel.
-*   **OOO Approval Delegation**: Active delegation of Petty Cash and/or Leave approval authority to another user for a specific date range.
-*   **In-App Notifications**: Seamless delivery of request status changes, comments, and delegations directly on the user's dashboard.
-*   **Analytics Dashboard**: Interactive charts (spending trends, department budget burn rates, upcoming absences) built with Recharts.
+> **Operations Management System (OMS)** is a production-grade, multi-tenant enterprise ERP platform designed and deployed for three sister organizations under the same corporate umbrella: **A Maze Venture**, **mYnt Connect**, and **Braincount**. Built with **Django REST Framework** and **React 19 + Tailwind CSS v4 + GSAP**, OMS automates complex financial requisitions, multi-level approval hierarchies, statutory leave management, and cross-organization delegation.
 
 ---
 
-## Technology Stack
+## 🏛️ Executive Summary & Business Impact
+
+Traditional internal financial and HR workflows rely on fragmented spreadsheets and manual email approvals, causing budget overruns, delayed reimbursements, and untracked expenditures. OMS modernizes internal operations into a consolidated, secure digital platform:
+
+* **Row-Level Multi-Tenancy**: Complete logical isolation of users, departments, budgets, and approval chains across **A Maze Venture**, **mYnt Connect**, and **Braincount** from a single unified codebase.
+* **Dynamic Brand Theming**: Automatically applies the branding, typography, color palettes, and logos of the logged-in user's active organization in real time.
+* **Finite State Machine Requisition Engine**: Deterministic financial lifecycle governed by `django-fsm`, eliminating invalid approval states or skipped managerial thresholds.
+* **Automated Bangladesh Calendar Engine**: Leave calculations automatically account for Bangladesh national statutory holidays and Friday/Saturday weekend policies.
+* **Out of Office (OOO) Delegation Engine**: Temporary managerial approval authority delegation with automated expiration and full audit logging.
+* **Recruiter & Executive Demo Mode**: Built-in one-click demo persona switcher allowing recruiters and evaluators to test Employee, Team Lead, CEO, and Finance roles seamlessly.
+
+---
+
+## 🧭 System Architecture & Workflow State Machine
+
+### Finite State Machine (Petty Cash Lifecycle)
+
+```text
+       ┌───────────────┐
+       │     DRAFT     │
+       └───────┬───────┘
+               │ Submit Requisition (Validate Dept Budget)
+               ▼
+       ┌────────────────────────┐
+       │  PENDING_TL_APPROVAL   │
+       └───────┬────────┬───────┘
+  Amount <= TL │        │ Amount > TL Limit
+  Limit        ▼        ▼
+       ┌──────────┐  ┌────────────────────────┐
+       │          │  │  PENDING_CEO_APPROVAL  │
+       │          │  └──────────┬─────────────┘
+       │          │             │ CEO Approves
+       │          ▼             ▼
+       │     ┌────────────────────────┐
+       └────►│ PENDING_HR_DISBURSEMENT│
+             └──────────┬─────────────┘
+                        │
+       ┌────────────────┴────────────────┐
+       │ Partial Payout                  │ Full Payout
+       ▼                                 ▼
+┌────────────────────────┐     ┌────────────────────────┐
+│  PARTIALLY_DISBURSED   │     │       DISBURSED        │
+└────────────────────────┘     └────────────────────────┘
+```
+
+---
+
+## 🏢 Multi-Tenant Architecture
+
+```text
+                           [ Authenticated User / Client ]
+                                          │
+                                          ▼  JWT Token (org_id payload)
+                     ┌────────────────────────────────────────┐
+                     │     Django Tenant Scope Middleware     │
+                     └────────────────────┬───────────────────┘
+                                          │
+            ┌─────────────────────────────┼─────────────────────────────┐
+            │                             │                             │
+            ▼                             ▼                             ▼
+  [ A Maze Venture ]              [ mYnt Connect ]               [ Braincount ]
+  • Custom Theme Palette          • Custom Theme Palette        • Custom Theme Palette
+  • Isolated Dept Budgets         • Isolated Dept Budgets       • Isolated Dept Budgets
+  • Dedicated TL / CEO Roster     • Dedicated TL / CEO Roster   • Dedicated TL / CEO Roster
+  • Scoped Requisitions           • Scoped Requisitions         • Scoped Requisitions
+```
+
+* **Tenant Isolation**: Custom Django querysets and model mixins automatically filter records by `organization_id`.
+* **Dynamic Client-Side Theming**: React dynamically swaps CSS variables and DaisyUI themes on authentication, delivering branded UI tailored to each sister company.
+
+---
+
+## 🌟 Key Feature Modules
+
+### 1. Petty Cash Requisition Module
+* **Dynamic Budget Enforcement**: Real-time validation verifying that line item totals do not exceed remaining department monthly allocations.
+* **Dual Approval Thresholds**:
+  * Amounts within Team Lead threshold proceed directly to HR/Finance.
+  * Requisitions exceeding the TL limit automatically escalate to the CEO.
+* **Receipt & BLOB Support**: Granular itemized expenses with secure file upload and SQL BLOB attachment storage.
+* **Disbursement Tracking**: Supports full or multi-installment partial payouts with payment mode logging (Cash, bKash, Bank Wire).
+
+### 2. Statutory Leave Management Module
+* **Working Day Calculator**: Automatically deducts Friday/Saturday weekends and Bangladesh national holidays via the `holidays` engine.
+* **Balance Safeguards**: Prevents negative balances, rejects overlapping date ranges, and automatically restores balance reservations upon cancellation.
+* **Half-Day Support**: Configurable First-Half / Second-Half working day requests.
+
+### 3. Out-of-Office (OOO) Delegation Engine
+* Authorizes temporary surrogate approval power to designated peers for specified date windows.
+* Automatically routes requisitions to the delegate while logging the principal in the audit trail.
+
+### 4. Recruiter Demo Quick-Selectors
+* Instant persona switching in the login portal:
+  * **Employee**: Submit requisitions and leave requests.
+  * **Team Lead**: Approve direct reports' requisitions within threshold.
+  * **CEO**: High-value requisition approvals and company-wide oversight.
+  * **HR / Finance**: Execute disbursements and budget management.
+
+---
+
+## 💻 Tech Stack Breakdown
 
 ### Backend
-*   **Web Framework**: Django 4.2 LTS & Django REST Framework (DRF) 3.14+
-*   **Workflow / State Management**: `django-fsm`
-*   **Task/Email Queue**: Thread-based asynchronous execution model (using custom Python threading decorators)
-*   **Database**: SQLite (Default / containerized volume) or MySQL 8.x (Row-level isolation support)
+* **Framework**: Django 4.2 LTS, Django REST Framework (DRF)
+* **Authentication**: SimpleJWT (`djangorestframework-simplejwt`)
+* **State Machine & Auditing**: `django-fsm`, `django-fsm-log`, `django-auditlog`, `django-simple-history`
+* **Calendar Engine**: `holidays` (Bangladesh national calendar)
+* **API Documentation**: `drf-spectacular` (OpenAPI 3.0 & Swagger UI)
 
 ### Frontend
-*   **Runtime / Build Tool**: React 19 + Vite 8
-*   **Routing**: React Router v7
-*   **Styling**: Tailwind CSS v4 & DaisyUI v5 (with 3 custom organization themes)
-*   **State Management**: Zustand 5 & TanStack Query (React Query) v5
-*   **Animations**: GreenSock Animation Platform (GSAP) & Framer Motion
-*   **Charts**: Recharts
+* **Core**: React 19 (`19.2.6`), Vite, TypeScript, React Router DOM v7 (`7.17.0`)
+* **Styling**: Tailwind CSS v4 (`4.3.0`), DaisyUI v5 (`5.5.23`)
+* **Animation & Motion**: GSAP 3.15, `@gsap/react`, Framer Motion (`12.40.0`)
+* **State & Data**: TanStack Query v5, Zustand v5, React Hook Form + Zod v4
+* **Visualization & Export**: Recharts v3.8, XLSX (Excel reporting)
 
 ---
 
-## Project Directory Structure
+## 🛠️ Local Development Setup
 
-```text
-├── oms_backend/             # Django backend workspace
-│   ├── manage.py            # Django CLI entrypoint
-│   ├── oms_project/         # Settings, WSGI/ASGI configurations, URL routing
-│   ├── core/                # Core mixins, multitenancy middleware, tasks, tests
-│   ├── accounts/            # User profiles, departments, roles, auth
-│   ├── pettycash/           # Petty Cash models, views, serializers, FSM
-│   ├── leave/               # Leave request models, calculators, calendars
-│   ├── approvals/           # Approval delegations (OOO)
-│   ├── analytics/           # Custom endpoints for metric aggregation
-│   ├── notifications/       # Notification model, views, serializers
-│   ├── requirements.txt     # Backend python dependencies
-│   └── venv/                # Local virtual environment
-└── oms_frontend/            # React + Vite frontend workspace
-    ├── package.json         # Frontend Node dependencies
-    ├── vite.config.js       # Vite build configurations
-    └── src/                 # React source code (components, pages, stores)
-```
-
----
-
-## Backend Setup & Run
-
-### 1. Configure Virtual Environment & Install Dependencies
-Navigate to the backend directory, activate the virtual environment, and install dependencies:
+### 1. Backend Setup
 ```bash
 cd oms_backend
-source venv/bin/activate
+
+# Create and activate virtual environment
+python -m venv .venv
+source .venv/bin/activate
+
+# Install dependencies
 pip install -r requirements.txt
-```
 
-### 2. Initialize Database
-Apply migrations to set up the SQLite schema and run the seed script to populate organizations, departments, seed users, and demo requests:
-```bash
+# Run migrations and seed data
 python manage.py migrate
-python manage.py seed_data
+python manage.py loaddata ../local_data.json  # If available
+
+# Boot backend API
+python manage.py runserver 8000
 ```
+Swagger API documentation available at `http://localhost:8000/api/schema/swagger-ui/`.
 
-### 3. Running Backend Server
-Run the local Django development server:
-```bash
-python manage.py runserver
-```
-The backend API will run at `http://127.0.0.1:8000/`.
-
-### 4. Running Tests
-Run the end-to-end integration and workflow verification tests:
-```bash
-python manage.py test
-```
-
----
-
-## Frontend Setup & Run
-
-### 1. Install Dependencies
-Navigate to the frontend directory and install dependencies:
+### 2. Frontend Setup
 ```bash
 cd oms_frontend
+
+# Install dependencies
 npm install
-```
 
-### 2. Configure Environment
-Verify or update the API URLs in the `.env` file:
-```text
-VITE_API_URL=http://127.0.0.1:8000
-VITE_WS_URL=ws://127.0.0.1:8000
-```
-
-### 3. Start Development Server
-Run the local Vite development server:
-```bash
+# Boot development server
 npm run dev
 ```
-Open [http://localhost:5173](http://localhost:5173) in your browser.
+Open `http://localhost:5173` in your browser.
 
 ---
 
-## Seed User Credentials
+## 🐳 Docker Deployment
 
-All seeded users have the password set to `password123`. For a full breakdown of departments, emails, and budget limits, see [credentials](./credentials).
+The repository includes ready-to-run multi-container Docker compose definitions:
 
-### 1. Global Roles (CEO, GM, HR, Admin)
-*   **CEO**: `{org}_ceo` (Approves Petty Cash above TL limit, Leave requests)
-*   **General Manager (GM)**: `{org}_gm` (Approves Leaves, manages delegations)
-*   **HR**: `{org}_hr` (Executes payment disbursements)
-*   **Admin**: `{org}_admin` (Full tenant control and configuration)
-*   **Team Lead**: `{org}_lead` (Initial departmental approvals)
-*(Replace `{org}` with `amaze`, `mynt`, or `braincount`)*
-
-### 2. Departmental Staff (Employees)
-*   **A Maze Venture (`amaze`)**:
-    *   Venture Development (`vent`): `amaze_vent_emp1`, `amaze_vent_emp2`
-    *   Creative Studio (`creative`): `amaze_creative_emp1`, `amaze_creative_emp2`
-    *   People & Culture (`hr`): `amaze_hr_emp1`, `amaze_hr_emp2`
-    *   Strategy & Growth (`growth`): `amaze_growth_emp1`, `amaze_growth_emp2`
-*   **mYnt Connect (`mynt`)**:
-    *   Network Engineering (`net`): `mynt_net_emp1`, `mynt_net_emp2`
-    *   Customer Relations (`support`): `mynt_support_emp1`, `mynt_support_emp2`
-    *   Finance & Admin (`fin`): `mynt_fin_emp1`, `mynt_fin_emp2`
-    *   Hardware Logistics (`logistics`): `mynt_logistics_emp1`, `mynt_logistics_emp2`
-*   **Braincount (`braincount`)**:
-    *   AI Research (`ai`): `braincount_ai_emp1`, `braincount_ai_emp2`
-    *   Infrastructure & Ops (`ops`): `braincount_ops_emp1`, `braincount_ops_emp2`
-    *   Product Management (`prod`): `braincount_prod_emp1`, `braincount_prod_emp2`
-    *   Sales & Partnerships (`sales`): `braincount_sales_emp1`, `braincount_sales_emp2`
+```bash
+# Production containerized deployment
+docker compose -f docker-compose.prod.yml up --build -d
+```
 
 ---
 
-## Verification & Manual Testing Flow
+## 👨‍💻 Engineering Leadership & Portfolio Highlight
 
-1.  **Test Tenant Isolation**:
-    *   Log in as `amaze_vent_emp1` and create a Petty Cash request.
-    *   Log in as `mynt_net_emp1`. Verify that you cannot view or access the Amaze request, and that the UI transitions to the **mYnt** color theme.
-2.  **Test Petty Cash Approval**:
-    *   Submit a Petty Cash request of `৳30,000` (exceeds the Venture Development TL limit).
-    *   Log in as `amaze_lead` and approve it. It escalates to `pending_ceo_approval`.
-    *   Log in as `amaze_ceo` and approve it. The state transitions to `pending_hr_disbursement`.
-    *   Log in as `amaze_hr` to execute the payment disbursement.
-3.  **Test OOO Delegation**:
-    *   Log in as `amaze_ceo` and delegate authority to `amaze_vent_emp1` for `PETTY_CASH`.
-    *   Create a request by `amaze_vent_emp2` and submit it. Escalate to CEO level.
-    *   Log in as `amaze_vent_emp1`. You will see the request in your approval queue and can successfully approve it on behalf of the CEO.
+* **Architecture**: Enterprise Multi-Tenant Operations & Financial ERP System
+* **Author / Senior Engineer**: **Ridwanul Azim** ([@Zauwad](https://github.com/Zauwad))
+* **Organization**: A Maze Venture / mYnt Connect / Braincount
